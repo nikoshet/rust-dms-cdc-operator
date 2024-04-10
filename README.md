@@ -1,4 +1,4 @@
-# Rust CDC-Validator
+# Rust-CDC-Validator
 
 ## Overview
 
@@ -44,6 +44,8 @@ Options:
           Start date to filter the Parquet files Example: 2024-02-14T10:00:00Z [default: 2024-02-14T10:00:00Z]
       --chunk-size <CHUNK_SIZE>
           Datadiff chunk size [default: 1000]
+      --start-position <START_POSITION>
+          Datadiff start position [default: 0]
       --only-datadiff
           Run only the datadiff
       --only-snapshot
@@ -62,7 +64,7 @@ Options:
 ```shell
 docker-compose up
 
-psql -h localhost -p 5432 -U postgres -d mydb
+psql -h localhost -p 5438 -U postgres -d mydb
 ```
 
 - Build and run the Rust tool
@@ -72,7 +74,7 @@ cargo clippy --all
 
 cargo build
 
-RUST_LOG=rust_cdc_validator=info,rust_pgdatadiff=info cargo run validate --bucket-name my-bucket --s3-prefix prefix/path --postgres-url postgres://postgres:postgres@localhost:5432/mydb1 --local-postgres-url postgres://postgres:postgres@localhost:5432/mydb2 --database-schema public --table-name mytable --start-date 2024-02-14T10:00:00Z --chunk-size 100
+RUST_LOG=rust_cdc_validator=info,rust_pgdatadiff=info cargo run validate --bucket-name my-bucket --s3-prefix prefix/path --postgres-url postgres://postgres:postgres@localhost:5432/mydb1 --local-postgres-url postgres://postgres:postgres@localhost:5438/mydb --database-schema public --table-name mytable --start-date 2024-02-14T10:00:00Z --chunk-size 100
 ```
 
 For more debugging, you can enable Rust related logs by exporting the following:

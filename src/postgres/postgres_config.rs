@@ -53,7 +53,6 @@ impl PostgresConfig {
     /// A connection pool to the Postgres database.
     pub async fn connect_to_postgres(&self) -> PgPool {
         let connection_string = self.postgres_url.to_string();
-
         Pool::<Postgres>::connect(&connection_string)
             .await
             .expect("Failed to connect to DB")
@@ -61,7 +60,7 @@ impl PostgresConfig {
 
     /// Returns the connection string.
     pub fn connection_string(&self) -> String {
-        "postgres://postgres:postgres@localhost:5432/mydb".to_string()
+        self.postgres_url.to_string()
     }
 }
 

@@ -44,6 +44,9 @@ enum Commands {
         /// Datadiff chunk size
         #[arg(long, required = false, default_value = "1000")]
         chunk_size: i64,
+        /// Datadiff start position
+        #[arg(long, required = false, default_value = "0")]
+        start_position: i64,
         /// Run only the datadiff
         #[arg(
             long,
@@ -78,6 +81,7 @@ async fn main() -> Result<()> {
             table_name,
             start_date,
             chunk_size,
+            start_position,
             only_datadiff,
             only_snapshot,
         } => {
@@ -90,6 +94,7 @@ async fn main() -> Result<()> {
                 table_name,
                 start_date,
                 chunk_size,
+                start_position,
                 only_datadiff,
                 only_snapshot,
             );
