@@ -8,8 +8,10 @@ The `rust-cdc-validator` is a Rust-based utility designed to compare the state o
 ## Features
 
 - Import a snapshot of the CDC parquet data stored in AWS S3 with date-based folder partitioning in a locally deployed Postgres
+- Specify a specific time range to replicate the S3 state on a Postgres
+- Restore the RDS state from S3 in case of data loss
 - Compare the state of a specific table in an Amazon RDS database with the data stored in Parquet files in the S3 bucket
-- Identify differences at the row level by modifying chunk size
+- Identify differences at the row level by modifying the validated chunk size
 
 
 ## Prerequisites
@@ -25,7 +27,7 @@ The `rust-cdc-validator` is a Rust-based utility designed to compare the state o
 ## Usage
 
 ```shell
-Usage: rust-cdc-validator validate [OPTIONS] --bucket-name <BUCKET_NAME> --s3-prefix <S3_PREFIX> --postgres-url <POSTGRES_URL> --local-postgres-url <LOCAL_POSTGRES_URL> --table-name <TABLE_NAME> --start-date <START_DATE>
+Usage: rust-cdc-validator validate [OPTIONS] --bucket-name <BUCKET_NAME> --s3-prefix <S3_PREFIX> --postgres-url <POSTGRES_URL> --local-postgres-url <LOCAL_POSTGRES_URL> --table-names [<TABLE_NAMES>...] --start-date <START_DATE>
 
 Options:
       --bucket-name <BUCKET_NAME>
@@ -38,10 +40,12 @@ Options:
           Url of the local database to import the parquet files Example: postgres://postgres:postgres@localhost:5432/mydb
       --database-schema <DATABASE_SCHEMA>
           Schema of database to validate against S3 files [default: public]
-      --table-name <TABLE_NAME>
-          Table name to validate against S3 files
+      --table-names [<TABLE_NAMES>...]
+          List of table names to validate against S3 files
       --start-date <START_DATE>
           Start date to filter the Parquet files Example: 2024-02-14T10:00:00Z [default: 2024-02-14T10:00:00Z]
+      --stop-date <STOP_DATE>
+          Stop date to filter the Parquet files Example: 2024-02-14T10:00:00Z
       --chunk-size <CHUNK_SIZE>
           Datadiff chunk size [default: 1000]
       --start-position <START_POSITION>

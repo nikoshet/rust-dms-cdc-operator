@@ -5,7 +5,7 @@ use sqlx::{Pool, Postgres};
 pub struct PostgresConfig {
     postgres_url: String,
     database_schema: String,
-    table_name: String,
+    table_names: Vec<String>,
 }
 impl PostgresConfig {
     /// Creates a new Postgres config.
@@ -14,7 +14,7 @@ impl PostgresConfig {
     ///
     /// * `postgres_url` - The Postgres URL
     /// * `database_schema` - The schema of the database
-    /// * `table_name` - The name of the table
+    /// * `table_names` - The list of table names
     ///
     /// # Returns
     ///
@@ -22,12 +22,12 @@ impl PostgresConfig {
     pub fn new(
         postgres_url: impl Into<String>,
         database_schema: impl Into<String>,
-        table_name: impl Into<String>,
+        table_names: Vec<impl Into<String>>,
     ) -> Self {
         PostgresConfig {
             postgres_url: postgres_url.into(),
             database_schema: database_schema.into(),
-            table_name: table_name.into(),
+            table_names: table_names.into_iter().map(|t| t.into()).collect(),
         }
     }
 
@@ -37,8 +37,8 @@ impl PostgresConfig {
     }
 
     /// Gets the table name.
-    pub fn table_name(&self) -> &str {
-        &self.table_name
+    pub fn table_names(&self) -> &Vec<String> {
+        &self.table_names
     }
 
     /// Gets the database name.
@@ -70,10 +70,11 @@ mod tests {
 
     #[test]
     fn test_new_postgres_config() {
+        let table_list = vec!["table1", "table2"];
         let config = PostgresConfig::new(
             "postgres://postgres:postgres@localhost:5432/mydb",
             "database_schema",
-            "table_name",
+            table_list.clone(),
         );
 
         assert_eq!(
@@ -81,15 +82,16 @@ mod tests {
             "postgres://postgres:postgres@localhost:5432/mydb"
         );
         assert_eq!(config.database_schema, "database_schema");
-        assert_eq!(config.table_name, "table_name");
+        assert_eq!(config.table_names, table_list);
     }
 
     #[test]
     fn test_connection_string() {
+        let table_list = vec!["table1", "table2"];
         let config = PostgresConfig::new(
             "postgres://postgres:postgres@localhost:5432/mydb",
             "database_schema",
-            "table_name",
+            table_list,
         );
 
         assert_eq!(

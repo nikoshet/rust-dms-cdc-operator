@@ -62,6 +62,17 @@ pub trait PostgresOperator {
         schema_name: &str,
     ) -> Result<Vec<String>, sqlx::Error>;
 
+    /// Create a schema in the local database.
+    ///
+    /// # Arguments
+    ///
+    /// * `schema_name` - The name of the schema.
+    ///
+    /// # Returns
+    ///
+    /// A Result indicating success or failure.
+    async fn create_schema(&self, schema_name: &str) -> Result<(), sqlx::Error>;
+
     /// Create a table in the local database.
     ///
     /// # Arguments
@@ -228,6 +239,19 @@ impl PostgresOperator for PostgresOperatorImpl {
             .collect::<Vec<String>>();
 
         Ok(primary_key_list)
+    }
+
+    async fn create_schema(&self, schema_name: &str) -> Result<(), sqlx::Error> {
+        let pg_pool = self.db_client.clone();
+
+        // Prepare the query to create a schema
+        let query = CreateSchema(schema_name.to_string());
+        sqlx::query(&query.to_string())
+            .execute(&pg_pool)
+            .await
+            .expect("Failed to create schema");
+
+        Ok(())
     }
 
     async fn create_table(

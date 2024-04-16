@@ -5,6 +5,7 @@ pub enum TableQuery {
     FindAllColumns(String, String),
     DeleteRows(String, String, String, String),
     FindPrimaryKey(String, String),
+    CreateSchema(String),
     CreateTable(String, String, IndexMap<String, String>, String),
     DropDmsColumns(String, String),
 }
@@ -47,6 +48,17 @@ impl Display for TableQuery {
                     schema, table,
                 )
             }
+            TableQuery::CreateSchema(schema) => {
+                write!(
+                    f,
+                    // language=postgresql
+                    r#"
+                    CREATE SCHEMA IF NOT EXISTS {}
+                    "#,
+                    schema
+                )
+            }
+
             TableQuery::CreateTable(schema, table, column_data_types, primary_key) => {
                 let mut query = format!("CREATE TABLE IF NOT EXISTS {}.{} (", schema, table);
 
@@ -125,6 +137,17 @@ mod tests {
                     AND a.attnum = ANY(i.indkey)
                     WHERE  i.indrelid = 'schema.table'::regclass
                     AND    i.indisprimary"#
+        );
+    }
+
+    #[test]
+    fn test_display_create_schema() {
+        let query = TableQuery::CreateSchema("schema".to_string());
+        assert_eq!(
+            query.to_string(),
+            r#"
+                    CREATE SCHEMA IF NOT EXISTS schema
+                    "#
         );
     }
 

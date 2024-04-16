@@ -34,13 +34,17 @@ enum Commands {
         /// Schema of database to validate against S3 files
         #[arg(long, required = false, default_value = "public")]
         database_schema: String,
-        /// Table name to validate against S3 files
-        #[arg(long, required = true)]
-        table_name: String,
+        /// List of table names to validate against S3 files
+        #[arg(long, value_delimiter = ',', num_args = 0.., required = true)]
+        table_names: Vec<String>,
         /// Start date to filter the Parquet files
         /// Example: 2024-02-14T10:00:00Z
         #[arg(long, required = true, default_value = "2024-02-14T10:00:00Z")]
         start_date: String,
+        /// Stop date to filter the Parquet files
+        /// Example: 2024-02-14T10:00:00Z
+        #[arg(long, required = false)]
+        stop_date: Option<String>,
         /// Datadiff chunk size
         #[arg(long, required = false, default_value = "1000")]
         chunk_size: i64,
@@ -78,8 +82,9 @@ async fn main() -> Result<()> {
             postgres_url,
             local_postgres_url,
             database_schema,
-            table_name,
+            table_names,
             start_date,
+            stop_date,
             chunk_size,
             start_position,
             only_datadiff,
@@ -91,8 +96,9 @@ async fn main() -> Result<()> {
                 postgres_url,
                 local_postgres_url,
                 database_schema,
-                table_name,
+                table_names,
                 start_date,
+                stop_date,
                 chunk_size,
                 start_position,
                 only_datadiff,
