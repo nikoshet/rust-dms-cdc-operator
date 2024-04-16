@@ -3,8 +3,8 @@ use std::fmt::Display;
 
 pub enum TableQuery {
     FindAllColumns(String, String),
-    DeleteRows(String, String, String),
-    FindPrimaryKey(String),
+    DeleteRows(String, String, String, String),
+    FindPrimaryKey(String, String),
     CreateTable(String, String, IndexMap<String, String>, String),
     DropDmsColumns(String, String),
 }
@@ -22,18 +22,18 @@ impl Display for TableQuery {
                     schema, table
                 )
             }
-            TableQuery::DeleteRows(table, primary_key, primary_key_value) => {
+            TableQuery::DeleteRows(schema, table, primary_key, primary_key_value) => {
                 write!(
                     f,
                     // language=postgresql
                     r#"
-                    DELETE FROM {}
-                    WHERE {}={}
+                    DELETE FROM {}.{}
+                    WHERE ({})=({})
                     "#,
-                    table, primary_key, primary_key_value
+                    schema, table, primary_key, primary_key_value
                 )
             }
-            TableQuery::FindPrimaryKey(table) => {
+            TableQuery::FindPrimaryKey(table, schema) => {
                 write!(
                     f,
                     // language=postgresql
@@ -42,9 +42,9 @@ impl Display for TableQuery {
                     FROM   pg_index i
                     JOIN   pg_attribute a ON a.attrelid = i.indrelid
                     AND a.attnum = ANY(i.indkey)
-                    WHERE  i.indrelid = '{}'::regclass
+                    WHERE  i.indrelid = '{}.{}'::regclass
                     AND    i.indisprimary"#,
-                    table
+                    schema, table,
                 )
             }
             TableQuery::CreateTable(schema, table, column_data_types, primary_key) => {
@@ -97,22 +97,25 @@ mod tests {
     #[test]
     fn test_display_delete_rows() {
         let query = TableQuery::DeleteRows(
+            "schema".to_string(),
             "table".to_string(),
-            "primary_key".to_string(),
-            "1".to_string(),
+            vec!["primary_key".to_string(), "primary_key2".to_string()]
+                .as_slice()
+                .join(","),
+            vec!["1".to_string(), "2".to_string()].as_slice().join(","),
         );
         assert_eq!(
             query.to_string(),
             r#"
-                    DELETE FROM table
-                    WHERE primary_key=1
+                    DELETE FROM schema.table
+                    WHERE (primary_key,primary_key2)=(1,2)
                     "#
         );
     }
 
     #[test]
     fn test_display_find_primary_key() {
-        let query = TableQuery::FindPrimaryKey("table".to_string());
+        let query = TableQuery::FindPrimaryKey("table".to_string(), "schema".to_string());
         assert_eq!(
             query.to_string(),
             r#"
@@ -120,7 +123,7 @@ mod tests {
                     FROM   pg_index i
                     JOIN   pg_attribute a ON a.attrelid = i.indrelid
                     AND a.attnum = ANY(i.indkey)
-                    WHERE  i.indrelid = 'table'::regclass
+                    WHERE  i.indrelid = 'schema.table'::regclass
                     AND    i.indisprimary"#
         );
     }
@@ -130,15 +133,19 @@ mod tests {
         let mut column_data_types = IndexMap::new();
         column_data_types.insert("column1".to_string(), "varchar".to_string());
         column_data_types.insert("column2".to_string(), "int".to_string());
+        let primary_keys = vec!["primary_key".to_string(), "primary_key2".to_string()]
+            .as_slice()
+            .join(",");
+
         let query = TableQuery::CreateTable(
             "schema".to_string(),
             "table".to_string(),
             column_data_types,
-            "primary_key".to_string(),
+            primary_keys,
         );
         assert_eq!(
             query.to_string(),
-            "CREATE TABLE IF NOT EXISTS schema.table (Op varchar,_dms_ingestion_timestamp varchar,column1 varchar,column2 int,PRIMARY KEY (primary_key))"
+            "CREATE TABLE IF NOT EXISTS schema.table (Op varchar,_dms_ingestion_timestamp varchar,column1 varchar,column2 int,PRIMARY KEY (primary_key,primary_key2))"
         );
     }
 

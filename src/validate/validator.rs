@@ -21,6 +21,7 @@ pub struct Validator {
     table_name: String,
     start_date: String,
     chunk_size: i64,
+    start_position: i64,
     only_datadiff: bool,
     only_snapshot: bool,
 }
@@ -38,6 +39,7 @@ impl Validator {
     /// * `table_name` - The name of the table
     /// * `start_date` - The start date
     /// * `chunk_size` - The chunk size
+    /// * `start_position` - The start position for pgdatadiff
     /// * `only_datadiff` - Whether to only validate the data difference
     /// * `only_snapshot` - Whether to only validate the snapshot
     ///
@@ -54,6 +56,7 @@ impl Validator {
         table_name: impl Into<String>,
         start_date: impl Into<String>,
         chunk_size: i64,
+        start_position: i64,
         only_datadiff: bool,
         only_snapshot: bool,
     ) -> Self {
@@ -70,6 +73,7 @@ impl Validator {
             table_name: table_name.into(),
             start_date: start_date.into(),
             chunk_size,
+            start_position,
             only_datadiff,
             only_snapshot,
         }
@@ -77,7 +81,7 @@ impl Validator {
 
     /// Validates the data between S3 and a local database.
     pub async fn validate(&self) {
-        info!("{}", "Starting validation".bold().purple());
+        info!("{}", "Starting validator...".bold().purple());
 
         // Connect to the Postgres database
         info!("{}", "Connecting to Postgres DB".bold().green());
@@ -108,6 +112,8 @@ impl Validator {
 
         // Check if only_datadiff is true
         if !self.only_datadiff {
+            info!("{}", "Starting snapshotting...".bold().blue());
+
             // Get the table columns
             info!("{}", "Getting table columns".bold().green());
             let table_columns = postgres_operator
@@ -122,18 +128,18 @@ impl Validator {
 
             // Get the primary key for the table
             info!("{}", "Getting primary key".bold().green());
-            let primary_key = postgres_operator
-                .get_primary_key(db_client.table_name())
+            let primary_key_list = postgres_operator
+                .get_primary_key(db_client.table_name(), db_client.schema_name())
                 .await
                 .unwrap();
-            info!("Primary key: {:?}", primary_key);
+            info!("Primary key(s): {:?}", primary_key_list);
 
             // Create the table in the local database
             info!("{}", "Creating table in the local DB".bold().green());
             let _ = local_postgres_operator
                 .create_table(
                     &table_columns,
-                    &primary_key,
+                    primary_key_list.clone(),
                     db_client.schema_name(),
                     db_client.table_name(),
                 )
@@ -157,8 +163,9 @@ impl Validator {
 
             for file in &parquet_files.unwrap() {
                 let bucket_name = self.bucket_name.clone();
+                let schema_name = self.database_schema.clone();
                 let table_name = self.table_name.clone();
-                let primary_key = primary_key.clone();
+                let primary_keys = primary_key_list.clone().as_slice().join(",");
                 let local_postgres_operator = local_postgres_operator.borrow();
                 let s3_operator = s3_operator.borrow();
 
@@ -181,7 +188,7 @@ impl Validator {
                 {
                     info!("Processing LOAD file: {:?}", file);
                     local_postgres_operator
-                        .insert_dataframe_in_local_db(current_df, &table_name)
+                        .insert_dataframe_in_local_db(current_df, &schema_name, &table_name)
                         .await
                         .unwrap_or_else(|_| {
                             panic!("Failed to insert LOAD file {:?} into table", file)
@@ -189,7 +196,12 @@ impl Validator {
                 } else {
                     info!("Processing CDC file: {:?}", file);
                     local_postgres_operator
-                        .upsert_dataframe_in_local_db(current_df, &table_name, &primary_key)
+                        .upsert_dataframe_in_local_db(
+                            current_df,
+                            &schema_name,
+                            &table_name,
+                            &primary_keys,
+                        )
                         .await
                         .unwrap_or_else(|_| {
                             panic!("Failed to upsert CDC file {:?} into table", file)
@@ -202,9 +214,13 @@ impl Validator {
             let _ = local_postgres_operator
                 .drop_dms_columns(db_client.schema_name(), db_client.table_name())
                 .await;
+
+            info!("{}", "Snapshotting completed...".bold().blue());
         }
 
         if !self.only_snapshot {
+            info!("{}", "Starting pgdatadiff...".bold().blue());
+
             // Run rust-pgdatadiff
             info!(
                 "{} {}",
@@ -214,11 +230,12 @@ impl Validator {
             let payload = DiffPayload::new(
                 db_client.connection_string(),
                 local_db_client.connection_string(),
-                true,            //only-tables
-                false,           //only-sequences
-                false,           //only-count
-                self.chunk_size, //chunk-size
-                100,             //max-connections
+                true,                //only-tables
+                false,               //only-sequences
+                false,               //only-count
+                self.chunk_size,     //chunk-size
+                self.start_position, //start-position
+                100,                 //max-connections
                 vec![db_client.table_name()],
                 EMPTY_STRING_VEC,
                 db_client.schema_name(),
@@ -227,6 +244,8 @@ impl Validator {
             if diff_result.is_err() {
                 panic!("Failed to run pgdatadiff: {:?}", diff_result.err().unwrap());
             }
+
+            info!("{}", "Pgdatadiff completed...".bold().blue());
         }
 
         // Close the connection pool
@@ -234,7 +253,7 @@ impl Validator {
         postgres_operator.close_connection_pool().await;
         local_postgres_operator.close_connection_pool().await;
 
-        info!("{}", "Validation complete".bold().purple());
+        info!("{}", "Validator finished...".bold().purple());
     }
 }
 
@@ -253,6 +272,7 @@ mod tests {
         let table_name = "test_table";
         let start_date = "2021-01-01";
         let chunk_size = 1000;
+        let start_position = 0;
         let only_datadiff = true;
         let only_snapshot = true;
 
@@ -265,6 +285,7 @@ mod tests {
             local_postgres_url,
             start_date,
             chunk_size,
+            start_position,
             only_datadiff,
             only_snapshot,
         );

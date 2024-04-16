@@ -3,7 +3,8 @@ use async_trait::async_trait;
 use indexmap::IndexMap;
 use log::debug;
 use polars::prelude::*;
-use serde_json::Value;
+use polars_core::export::num::ToPrimitive;
+use rust_decimal::Decimal;
 use sqlx::{Pool, Postgres, Row};
 use std::fmt::Display;
 use TableQuery::*;
@@ -50,11 +51,16 @@ pub trait PostgresOperator {
     /// # Arguments
     ///
     /// * `table_name` - The name of the table.
+    /// * `schema_name` - The name of the schema.
     ///
     /// # Returns
     ///
     /// The primary key of the table.
-    async fn get_primary_key(&self, table_name: &str) -> Result<String, sqlx::Error>;
+    async fn get_primary_key(
+        &self,
+        table_name: &str,
+        schema_name: &str,
+    ) -> Result<Vec<String>, sqlx::Error>;
 
     /// Create a table in the local database.
     ///
@@ -71,7 +77,7 @@ pub trait PostgresOperator {
     async fn create_table(
         &self,
         column_data_types: &IndexMap<String, String>,
-        primary_key: &str,
+        primary_key: Vec<String>,
         schema_name: &str,
         table_name: &str,
     ) -> Result<(), sqlx::Error>;
@@ -81,6 +87,7 @@ pub trait PostgresOperator {
     /// # Arguments
     ///
     /// * `df` - The DataFrame to insert.
+    /// * `schema_name` - The name of the schema.
     /// * `table_name` - The name of the table.
     ///
     /// # Returns
@@ -89,6 +96,7 @@ pub trait PostgresOperator {
     async fn insert_dataframe_in_local_db(
         &self,
         df: DataFrame,
+        schema_name: &str,
         table_name: &str,
     ) -> Result<(), anyhow::Error>;
 
@@ -97,6 +105,7 @@ pub trait PostgresOperator {
     /// # Arguments
     ///
     /// * `df` - The DataFrame to upsert.
+    /// * `schema_name` - The name of the schema.
     /// * `table_name` - The name of the table.
     /// * `primary_key` - The primary key of the table.
     ///
@@ -106,6 +115,7 @@ pub trait PostgresOperator {
     async fn upsert_dataframe_in_local_db(
         &self,
         df: DataFrame,
+        schema_name: &str,
         table_name: &str,
         primary_key: &str,
     ) -> Result<(), anyhow::Error>;
@@ -132,6 +142,30 @@ pub trait PostgresOperator {
     ///
     /// A Result indicating success or failure.
     async fn close_connection_pool(&self);
+
+    /// Process a string value.
+    ///
+    /// # Arguments
+    ///
+    /// * `value` - The string value to process.
+    ///
+    /// # Returns
+    ///
+    /// The processed value.
+    fn process_string_value(&self, value: &str) -> String;
+
+    /// Process a decimal value.
+    ///
+    /// # Arguments
+    ///
+    /// * `integer` - The integer part of the decimal value.
+    ///
+    /// * `precision` - The precision of the decimal value.
+    ///
+    /// # Returns
+    ///
+    /// The processed value.
+    fn process_decimal_value(&self, integer: i128, precision: usize) -> String;
 }
 
 pub struct PostgresOperatorImpl {
@@ -172,23 +206,34 @@ impl PostgresOperator for PostgresOperatorImpl {
         Ok(res)
     }
 
-    async fn get_primary_key(&self, table_name: &str) -> Result<String, sqlx::Error> {
+    async fn get_primary_key(
+        &self,
+        table_name: &str,
+        schema_name: &str,
+    ) -> Result<Vec<String>, sqlx::Error> {
         let pg_pool = self.db_client.clone();
 
         // Prepare the query to get the primary key for a table
-        let query = FindPrimaryKey(table_name.to_string());
-
+        let query = FindPrimaryKey(table_name.to_string(), schema_name.to_string());
         // Fetch the primary key for the table
-        let row = sqlx::query(&query.to_string()).fetch_one(&pg_pool).await?;
-        let primary_key: String = row.get("attname");
+        let row = sqlx::query(&query.to_string())
+            .fetch_all(&pg_pool)
+            .await
+            .unwrap_or(vec![]);
 
-        Ok(primary_key)
+        // Map query results to [Vec<String>]
+        let primary_key_list = row
+            .iter()
+            .map(|row| row.get("attname"))
+            .collect::<Vec<String>>();
+
+        Ok(primary_key_list)
     }
 
     async fn create_table(
         &self,
         column_data_types: &IndexMap<String, String>,
-        primary_key: &str,
+        primary_keys: Vec<String>,
         schema_name: &str,
         table_name: &str,
     ) -> Result<(), sqlx::Error> {
@@ -199,7 +244,7 @@ impl PostgresOperator for PostgresOperatorImpl {
             schema_name.to_string(),
             table_name.to_string(),
             column_data_types.clone(),
-            primary_key.to_owned(),
+            primary_keys.as_slice().join(","),
         );
         sqlx::query(&query.to_string())
             .execute(&pg_pool)
@@ -212,12 +257,14 @@ impl PostgresOperator for PostgresOperatorImpl {
     async fn insert_dataframe_in_local_db(
         &self,
         df: DataFrame,
+        schema_name: &str,
         table_name: &str,
     ) -> Result<(), anyhow::Error> {
         let pg_pool = self.db_client.clone();
 
         let mut query = format!(
-            "INSERT INTO {} ({}) VALUES ",
+            "INSERT INTO {}.{} ({}) VALUES ",
+            &schema_name,
             &table_name,
             df.schema()
                 .iter_fields()
@@ -249,32 +296,17 @@ impl PostgresOperator for PostgresOperatorImpl {
                         row_values
                             .iter()
                             .map(|v| match v {
-                                AnyValue::String(v) => {
-                                    // The fields that are of JSON type on polars DataFrame are stored as String,
-                                    // so we need to convert them to JSON before inserting them into the database
-                                    let json_value: Value =
-                                        serde_json::from_str(v).unwrap_or(Value::Null);
-                                    //: Result<serde_json::Value, _> = serde_json::ser::to_string(&v); //::from_str(&v);
-                                    match json_value {
-                                        Value::Object(_) => {
-                                            //format!("'{}'", json_value),
-                                            // Convert JSON value to a string representation and escape single quotes
-                                            let json_string =
-                                                serde_json::to_string(&json_value).unwrap();
-                                            let escaped_json_string =
-                                                json_string.replace('\'', "''");
-                                            format!("'{}'", escaped_json_string)
-                                        }
-                                        _ => {
-                                            // Escape single quotes in the string value
-                                            let v = v.replace('\'', "''");
-                                            format!("'{}'", v)
-                                        } // Ok(json_value) => format!("'{}'", json_value),
-                                          // Err(_) => format!("'{}'", v),
-                                    }
-                                }
+                                AnyValue::String(v) => self.process_string_value(v),
                                 AnyValue::Datetime(_, _, _) => format!("'{}'", v),
                                 AnyValue::Date(_) => format!("'{}'", v),
+                                AnyValue::Decimal(integer, precision) =>
+                                    self.process_decimal_value(*integer, *precision),
+                                AnyValue::Binary(v) => {
+                                    format!("'{:?}'", v)
+                                }
+                                AnyValue::Float64(v) => {
+                                    format!("{}", v)
+                                }
                                 _ => format!("{}", v),
                             })
                             .collect::<Vec<_>>()
@@ -296,6 +328,7 @@ impl PostgresOperator for PostgresOperatorImpl {
     async fn upsert_dataframe_in_local_db(
         &self,
         df: DataFrame,
+        schema_name: &str,
         table_name: &str,
         primary_key: &str,
     ) -> Result<(), anyhow::Error> {
@@ -312,11 +345,16 @@ impl PostgresOperator for PostgresOperatorImpl {
                 // Operation: Delete
                 // Delete the rows where Op="D"
                 if column.name() == "Op" && column.get(row).unwrap().to_string().contains('D') {
-                    let pk = df.column(primary_key).unwrap().get(row).unwrap();
+                    let mut pk = Vec::new();
+                    for key in primary_key.split(',') {
+                        pk.push(df.column(key).unwrap().get(row).unwrap().to_string());
+                    }
+
                     let query = DeleteRows(
+                        schema_name.to_string(),
                         table_name.to_string(),
                         primary_key.to_string(),
-                        pk.to_string(),
+                        pk.as_slice().join(","),
                     );
                     sqlx::query(&query.to_string().replace('"', "'"))
                         .execute(&pg_pool)
@@ -337,7 +375,8 @@ impl PostgresOperator for PostgresOperatorImpl {
 
             debug!("Row values: {:?}", row_values);
             let mut query = format!(
-                "INSERT INTO {} ({}) VALUES ",
+                "INSERT INTO {}.{} ({}) VALUES ",
+                &schema_name,
                 &table_name,
                 df.schema()
                     .iter_fields()
@@ -351,22 +390,17 @@ impl PostgresOperator for PostgresOperatorImpl {
                 row_values
                     .iter()
                     .map(|v| match v {
-                        AnyValue::String(v) => {
-                            let json_value: Value = serde_json::from_str(v).unwrap_or(Value::Null);
-                            match json_value {
-                                Value::Object(_) => {
-                                    let json_string = serde_json::to_string(&json_value).unwrap();
-                                    let escaped_json_string = json_string.replace('\'', "''");
-                                    format!("'{}'", escaped_json_string)
-                                }
-                                _ => {
-                                    let v = v.replace('\'', "''");
-                                    format!("'{}'", v)
-                                }
-                            }
-                        }
+                        AnyValue::String(v) => self.process_string_value(v),
                         AnyValue::Datetime(_, _, _) => format!("'{}'", v),
                         AnyValue::Date(_) => format!("'{}'", v),
+                        AnyValue::Decimal(integer, precision) =>
+                            self.process_decimal_value(*integer, *precision),
+                        AnyValue::Binary(v) => {
+                            format!("'{:?}'", v)
+                        }
+                        AnyValue::Float64(v) => {
+                            format!("{}", v)
+                        }
                         _ => format!("{}", v),
                     })
                     .collect::<Vec<_>>()
@@ -379,32 +413,25 @@ impl PostgresOperator for PostgresOperatorImpl {
                 query.push_str(&format!(" ON CONFLICT ({}) DO UPDATE SET ", primary_key));
                 let mut set_values = Vec::new();
                 for (index, column) in df.schema().iter_fields().enumerate() {
-                    if column.name() == primary_key {
+                    if primary_key.contains(&column.name().to_string()) {
                         continue;
                     }
                     set_values.push(format!(
                         "{} = {}",
                         column.name(),
                         match row_values.get(index).unwrap() {
-                            AnyValue::String(v) => {
-                                let json_value: Value =
-                                    serde_json::from_str(v).unwrap_or(Value::Null);
-                                match json_value {
-                                    Value::Object(_) => {
-                                        let json_string =
-                                            serde_json::to_string(&json_value).unwrap();
-                                        let escaped_json_string = json_string.replace('\'', "''");
-                                        format!("'{}'", escaped_json_string)
-                                    }
-                                    _ => {
-                                        let v = v.replace('\'', "''");
-                                        format!("'{}'", v)
-                                    }
-                                }
-                            }
+                            AnyValue::String(v) => self.process_string_value(v),
                             AnyValue::Datetime(_, _, _) =>
                                 format!("'{}'", row_values.get(index).unwrap()),
                             AnyValue::Date(_) => format!("'{}'", row_values.get(index).unwrap()),
+                            AnyValue::Decimal(integer, precision) =>
+                                self.process_decimal_value(*integer, *precision),
+                            AnyValue::Binary(v) => {
+                                format!("'{:?}'", v)
+                            }
+                            AnyValue::Float64(v) => {
+                                format!("{}", v)
+                            }
                             _ => format!("{}", row_values.get(index).unwrap()),
                         }
                     ));
@@ -443,5 +470,20 @@ impl PostgresOperator for PostgresOperatorImpl {
 
     async fn close_connection_pool(&self) {
         self.db_client.close().await;
+    }
+
+    fn process_string_value(&self, v: &str) -> String {
+        // The fields that are of JSON type on polars DataFrame are stored as String,
+        // so we can parse them like this to maintain order
+        let v = v.replace('\'', "''");
+        format!("'{}'", v)
+    }
+
+    fn process_decimal_value(&self, integer: i128, precision: usize) -> String {
+        let decimal = Decimal::new(
+            integer.to_i64().expect("Could not convert value to i64"),
+            precision.to_u32().expect("Could not convert value to u32"),
+        );
+        format!("{:}", decimal)
     }
 }
