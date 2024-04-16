@@ -22,10 +22,12 @@ pub trait S3Operator {
     /// * `database_schema` - The schema of the database
     /// * `table_name` - The name of the table
     /// * `start_date` - The start date
+    /// * `stop_date` - The stop date
     ///
     /// # Returns
     ///
     /// A list of Parquet files.
+    #[allow(clippy::too_many_arguments)]
     async fn get_list_of_parquet_files_from_s3(
         &self,
         bucket_name: String,
@@ -34,6 +36,7 @@ pub trait S3Operator {
         database_schema: String,
         table_name: String,
         start_date: String,
+        stop_date: Option<String>,
     ) -> Result<Vec<String>>;
 
     /// Gets the list of files from S3 based on the date.
@@ -43,7 +46,8 @@ pub trait S3Operator {
     /// * `bucket_name` - The name of the S3 bucket
     /// * `start_date_path` - The start date path
     /// * `prefix_path` - The prefix path
-    /// * `start_date` - The start date
+    /// * `start_date` - The start date to include the files
+    /// * `stop_date` - The stop date to include the files
     ///
     /// # Returns
     ///
@@ -54,6 +58,7 @@ pub trait S3Operator {
         start_date_path: String,
         prefix_path: String,
         start_date: DateTime,
+        stop_date: Option<DateTime>,
     ) -> Result<Vec<String>>;
 
     /// Reads a Parquet file from S3.
@@ -93,6 +98,7 @@ impl S3Operator for S3OperatorImpl {
         database_schema: String,
         table_name: String,
         start_date: String,
+        stop_date: Option<String>,
     ) -> Result<Vec<String>> {
         let prefix_path = format!(
             "{}/{}/{}/{}",
@@ -106,6 +112,14 @@ impl S3Operator for S3OperatorImpl {
         let start_date_path = format!("{}/{}/{}/{}/", prefix_path, year, month, day);
 
         let start_date = DateTime::from_str(&start_date, DateTimeFormat::DateTimeWithOffset)?;
+        let stop_date = if stop_date.is_none() {
+            None
+        } else {
+            Some(DateTime::from_str(
+                &stop_date.unwrap(),
+                DateTimeFormat::DateTimeWithOffset,
+            )?)
+        };
 
         let mut files_list: Vec<String>;
         files_list = Self::get_files_from_s3_based_on_date(
@@ -114,6 +128,7 @@ impl S3Operator for S3OperatorImpl {
             start_date_path,
             format!("{}/", prefix_path),
             start_date,
+            stop_date,
         )
         .await?;
 
@@ -130,6 +145,7 @@ impl S3Operator for S3OperatorImpl {
         start_date_path: String,
         prefix_path: String,
         start_date: DateTime,
+        stop_date: Option<DateTime>,
     ) -> Result<Vec<String>> {
         let mut files: Vec<String> = Vec::new();
         let mut next_token = None;
@@ -163,7 +179,14 @@ impl S3Operator for S3OperatorImpl {
                     let file = object.key.unwrap();
                     // Filter files based on last modified date
                     if let Some(last_modified) = object.last_modified {
-                        if last_modified > start_date || file.contains("LOAD") {
+                        if let Some(stop_date) = stop_date {
+                            if (last_modified > start_date && last_modified < stop_date)
+                                || file.contains("LOAD")
+                            {
+                                debug!("File: {:?}", file);
+                                files.push(file);
+                            }
+                        } else if last_modified > start_date || file.contains("LOAD") {
                             debug!("File: {:?}", file);
                             files.push(file);
                         }
