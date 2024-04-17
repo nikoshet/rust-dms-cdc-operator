@@ -26,6 +26,9 @@ The `rust-cdc-validator` is a Rust-based utility designed to compare the state o
 
 ## Usage
 
+The tool provides two features for running it, which are `Inquire` and `Clap`.
+
+### Using Clap
 ```shell
 Usage: rust-cdc-validator validate [OPTIONS] --bucket-name <BUCKET_NAME> --s3-prefix <S3_PREFIX> --postgres-url <POSTGRES_URL> --local-postgres-url <LOCAL_POSTGRES_URL> --table-names [<TABLE_NAMES>...] --start-date <START_DATE>
 
@@ -61,6 +64,11 @@ Options:
 
 ```
 
+### Using Inquire
+```shell
+rust-cdc-validator --features="with-inquire"
+```
+
 
 ## Example
 
@@ -78,7 +86,7 @@ cargo clippy --all
 
 cargo build
 
-RUST_LOG=rust_cdc_validator=info,rust_pgdatadiff=info cargo run validate --bucket-name my-bucket --s3-prefix prefix/path --postgres-url postgres://postgres:postgres@localhost:5432/mydb1 --local-postgres-url postgres://postgres:postgres@localhost:5438/mydb --database-schema public --table-name mytable --start-date 2024-02-14T10:00:00Z --chunk-size 100
+RUST_LOG=rust_cdc_validator=info,rust_pgdatadiff=info cargo run --features="with-clap" validate --bucket-name my-bucket --s3-prefix prefix/path --postgres-url postgres://postgres:postgres@localhost:5432/mydb1 --local-postgres-url postgres://postgres:postgres@localhost:5438/mydb --database-schema public --table-name mytable --start-date 2024-02-14T10:00:00Z --chunk-size 100
 ```
 
 For more debugging, you can enable Rust related logs by exporting the following:
@@ -95,6 +103,7 @@ Some crates utilized that are worth mentioning:
 - [rust-pgdatadiff](https://crates.io/crates/rust-pgdatadiff)
 - [tokio](https://crates.io/crates/tokio)
 - [clap](https://crates.io/crates/clap)
+- [inquire](https://crates.io/crates/inquire)
 - [parquet](https://crates.io/crates/parquet)
 - [sqlx](https://crates.io/crates/sqlx)
 
