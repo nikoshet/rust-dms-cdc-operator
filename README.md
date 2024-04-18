@@ -51,6 +51,8 @@ Options:
           Stop date to filter the Parquet files Example: 2024-02-14T10:00:00Z
       --chunk-size <CHUNK_SIZE>
           Datadiff chunk size [default: 1000]
+      --max-connections <MAX_CONNECTIONS>
+          Maximum connection pool size [default: 100]
       --start-position <START_POSITION>
           Datadiff start position [default: 0]
       --only-datadiff

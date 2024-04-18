@@ -15,21 +15,39 @@ log = "0.4.21"
 parquet = "51.0.0"
 bytes = "1.6.0"
 bytestr = "0.1.0"
-sqlx = { version = "0.7.4", features = ["postgres", "runtime-tokio", "tls-native-tls"] }
+sqlx = { version = "0.7.4", features = [
+    "postgres",
+    "runtime-tokio",
+    "tls-native-tls",
+] }
 clap = { version = "4.5.4", features = ["derive"], optional = true }
 colored = "2.1.0"
-polars = { version = "0.38.3", features = ["timezones", "json", "lazy", "aws", "parquet", "dtype-decimal", "streaming"]}
+polars = { version = "0.39.2", features = [
+    "timezones",
+    "json",
+    "lazy",
+    "aws",
+    "parquet",
+    "dtype-decimal",
+    "streaming",
+    "strings",
+] }
 chrono = "0.4.37"
-serde_json = { version = "1.0.115", features = ["preserve_order", "arbitrary_precision"] }
-serde = { version = "1.0", features = ["derive"] }
+serde_json = { version = "1.0.115", features = [
+    "preserve_order",
+    "arbitrary_precision",
+] }
+serde = { version = "1.0.189", features = ["derive"] }
 async-trait = "0.1.79"
 rust-pgdatadiff = "0.1.4"
-indexmap = { version = "2.2.6", features = ["serde"]}
-polars-core = "0.38.3"
-polars-utils = "0.38.3"
+indexmap = { version = "2.2.6", features = ["serde"] }
+polars-core = "0.39.2"
+polars-utils = "0.39.2"
 mockall = "0.12.1"
 rust_decimal = "1.35.0"
 inquire = { version = "0.7.4", optional = true }
+tracing-subscriber = "0.3.18"
+tracing = "0.1.40"
 
 [features]
 default = ["with-inquire"]

@@ -1,14 +1,19 @@
+use anyhow::Result;
 use async_trait::async_trait;
 use indexmap::IndexMap;
 use log::debug;
 use polars::prelude::*;
+
+use polars_core::export::num::ToPrimitive;
 use sqlx::{Pool, Postgres, Row};
 use std::fmt::Display;
 
+use tracing::instrument;
 use TableQuery::*;
 
 pub(crate) use super::postgres_operator::PostgresOperator;
 use super::table_query::TableQuery;
+
 use crate::postgres::postgres_row_struct::RowStruct;
 
 /// Represents the data type of a column in a table.
@@ -125,66 +130,92 @@ impl PostgresOperator for PostgresOperatorImpl {
         Ok(())
     }
 
+    #[instrument(name = "Insert data into table", skip(self))]
     async fn insert_dataframe_in_local_db(
         &self,
         df: DataFrame,
+        database_name: &str,
         schema_name: &str,
         table_name: &str,
-    ) -> Result<(), anyhow::Error> {
+    ) -> Result<()> {
         let pg_pool = self.db_client.clone();
 
-        let fields = df
-            .schema()
-            .iter_fields()
-            .map(|f| f.name().to_string())
-            .collect::<Vec<_>>()
-            .join(", ");
+        let column_names = df.get_column_names();
+        let fields = column_names.join(", ");
 
-        // Construct the query with placeholders
-        let values = (0..df.height())
-            .map(|row| {
-                df.get_columns()
-                    .iter()
-                    .map(|column| column.get(row).unwrap())
-                    .collect::<Vec<_>>()
-            })
-            .collect::<Vec<_>>();
+        let insert_rows_number = 100_000;
+        let df_height = df
+            .height()
+            .to_i64()
+            .expect("Error while looping through the dataframe");
 
-        let values = values
-            .iter()
-            .map(|row_values| {
-                let concatenated_row_values = row_values
-                    .iter()
-                    .map(|v| RowStruct::new(v).displayed())
-                    .collect::<Vec<_>>()
-                    .join(", ");
+        let mut offset = 0;
+        // Insert rows in chunks to avoid the bulk insert issue of EOF
+        while offset <= df_height {
+            let df_slice = df.slice(offset, insert_rows_number);
+            debug!(
+                "Current offset: {}, current df height: {}",
+                offset,
+                df_slice.height()
+            );
 
-                format!("({concatenated_row_values})")
-            })
-            .collect::<Vec<_>>()
-            .join(", ");
+            // Construct the query with placeholders
+            let values = (0..df_slice.height())
+                .map(|row| {
+                    df_slice
+                        .get_columns()
+                        .iter()
+                        .map(|column| column.get(row).unwrap())
+                        .collect::<Vec<_>>()
+                })
+                .collect::<Vec<_>>();
 
-        let query = format!("INSERT INTO {schema_name}.{table_name} ({fields}) VALUES {values}");
+            let values = values
+                .iter()
+                .map(|row_values| {
+                    let concatenated_row_values = row_values
+                        .iter()
+                        .map(|v| RowStruct::new(v).displayed())
+                        .collect::<Vec<_>>()
+                        .join(", ");
 
-        sqlx::query(&query)
-            .execute(&pg_pool)
-            .await
-            .expect("Failed to insert data into table");
+                    format!("({concatenated_row_values})")
+                })
+                .collect::<Vec<_>>()
+                .join(", ");
+
+            let query =
+                format!("INSERT INTO {schema_name}.{table_name} ({fields}) VALUES {values}");
+
+            sqlx::query(&query)
+                .execute(&pg_pool)
+                .await
+                .expect("Failed to insert data into table");
+
+            offset += insert_rows_number
+                .to_i64()
+                .expect("Error while incrementing the offset");
+        }
 
         Ok(())
     }
 
+    #[instrument(name = "Upsert data into table", skip(self))]
     async fn upsert_dataframe_in_local_db(
         &self,
         df: DataFrame,
+        database_name: &str,
         schema_name: &str,
         table_name: &str,
         primary_key: &str,
-    ) -> Result<(), anyhow::Error> {
+    ) -> Result<()> {
         let pg_pool = self.db_client.clone();
 
         let mut row_values = Vec::new();
         let mut deleted_row: bool;
+
+        let column_names = df.get_column_names();
+        let fields = column_names.join(", ");
 
         for row in 0..df.height() {
             row_values.clear();
@@ -232,29 +263,18 @@ impl PostgresOperator for PostgresOperatorImpl {
             }
 
             debug!("Row values: {:?}", row_values);
-            let fields = df
-                .schema()
-                .iter_fields()
-                .map(|f| f.name().to_string())
-                .collect::<Vec<_>>()
-                .join(", ");
-
             let values = row_values
                 .iter()
                 .map(|v| RowStruct::new(v).displayed())
                 .collect::<Vec<_>>()
                 .join(", ");
 
-            let mut query =
-                format!("INSERT INTO {schema_name}.{table_name} ({fields}) VALUES ({values})");
-
             // Operation: Update
             let is_update_op = row_values.first().unwrap().to_string().contains('U');
 
-            if is_update_op {
-                // Construct the query, on Conflict, update the row
-                query.push_str(&format!(" ON CONFLICT ({}) DO UPDATE SET ", primary_key));
-
+            let on_conflict_strategy = if !is_update_op {
+                String::from("")
+            } else {
                 let set_values = df
                     .schema()
                     .iter_fields()
@@ -269,8 +289,16 @@ impl PostgresOperator for PostgresOperatorImpl {
                     })
                     .collect::<Vec<_>>();
 
-                query.push_str(&set_values.join(", "));
-            }
+                // Construct the query, on Conflict, update the row
+                let strategy = format!(" ON CONFLICT ({}) DO UPDATE SET ", primary_key);
+                let concatenated_values = set_values.join(", ");
+
+                format!("{strategy} {concatenated_values}")
+            };
+
+            let query =
+                format!("INSERT INTO {schema_name}.{table_name} ({fields}) VALUES ({values})");
+            let query = format!("{query}{on_conflict_strategy}");
 
             debug!("Query: {}", query);
             sqlx::query(&query)

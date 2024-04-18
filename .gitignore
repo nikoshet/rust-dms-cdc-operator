@@ -10,3 +10,9 @@ target/
 /target
 .idea/
 .DS_Store
+.zed/
+
+
+# Other
+configuration_data/*
+script.sh
