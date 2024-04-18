@@ -1,10 +1,12 @@
 #[cfg(test)]
 mod tests {
-    use crate::postgres::postgres_ops::MockPostgresOperator;
-    use crate::postgres::postgres_ops::PostgresOperator;
     use indexmap::IndexMap;
     use mockall::predicate::*;
     use polars::prelude::*;
+
+    use crate::postgres::{
+        postgres_operator::MockPostgresOperator, postgres_ops::PostgresOperator,
+    };
 
     #[tokio::test]
     async fn test_get_table_columns() {
@@ -127,57 +129,5 @@ mod tests {
             .return_const(());
 
         postgres_operator.close_connection_pool().await;
-    }
-
-    #[test]
-    fn test_process_string_value_with_json() {
-        let input =
-            "{'bankAccount':{'Key1':'Val1', 'Key2':'Val2'}, 'city':'city1', 'postCode':'111111'}";
-        let expected_output =
-            "{'bankAccount':{'Key1':'Val1','Key2':'Val2'},'city':'city1','postCode':'111111'}";
-
-        let mut postgres_operator = MockPostgresOperator::new();
-        postgres_operator
-            .expect_process_string_value()
-            .times(1)
-            .with(eq(input))
-            .returning(|_| expected_output.to_string());
-
-        let result = postgres_operator.process_string_value(input);
-        assert_eq!(result, expected_output);
-    }
-
-    #[test]
-    fn test_process_string_value_without_json() {
-        let input = "Some string without JSON";
-        let expected_output = "'Some string without JSON'";
-
-        let mut postgres_operator = MockPostgresOperator::new();
-        postgres_operator
-            .expect_process_string_value()
-            .times(1)
-            .with(eq(input))
-            .returning(|_| expected_output.to_string());
-
-        let result = postgres_operator.process_string_value(input);
-        assert_eq!(result, expected_output);
-    }
-
-    #[test]
-    fn test_process_decimal_value() {
-        let integer: i128 = 24000;
-        let precision: usize = 2;
-
-        let expected_output = "240.00";
-
-        let mut postgres_operator = MockPostgresOperator::new();
-        postgres_operator
-            .expect_process_decimal_value()
-            .times(1)
-            .with(eq(integer), eq(precision))
-            .returning(|_, _| expected_output.to_string());
-
-        let result = postgres_operator.process_decimal_value(integer, precision);
-        assert_eq!(result, expected_output);
     }
 }

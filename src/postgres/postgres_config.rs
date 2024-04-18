@@ -37,8 +37,8 @@ impl PostgresConfig {
     }
 
     /// Gets the table name.
-    pub fn table_names(&self) -> &Vec<String> {
-        &self.table_names
+    pub fn table_names(&self) -> Vec<String> {
+        self.table_names.clone()
     }
 
     /// Gets the database name.
