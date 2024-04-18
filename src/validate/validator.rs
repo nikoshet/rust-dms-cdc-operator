@@ -5,7 +5,8 @@ use rust_pgdatadiff::diff::diff_payload::DiffPayload;
 use std::borrow::Borrow;
 
 use crate::postgres::postgres_config::PostgresConfig;
-use crate::postgres::postgres_ops::{PostgresOperator, PostgresOperatorImpl};
+use crate::postgres::postgres_operator::PostgresOperator;
+use crate::postgres::postgres_ops::PostgresOperatorImpl;
 use crate::s3::s3_ops::create_s3_client;
 use crate::s3::s3_ops::{S3Operator, S3OperatorImpl};
 
