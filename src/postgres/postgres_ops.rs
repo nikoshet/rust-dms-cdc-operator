@@ -1,12 +1,15 @@
 use crate::postgres::table_query::TableQuery;
 use async_trait::async_trait;
+use chrono::offset;
 use indexmap::IndexMap;
 use log::debug;
 use polars::prelude::*;
 use polars_core::export::num::ToPrimitive;
+use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use rust_decimal::Decimal;
 use sqlx::{Pool, Postgres, Row};
 use std::fmt::Display;
+use std::sync::{Arc, Mutex};
 use TableQuery::*;
 
 /// Represents the data type of a column in a table.
@@ -111,6 +114,26 @@ pub trait PostgresOperator {
         table_name: &str,
     ) -> Result<(), anyhow::Error>;
 
+    async fn insert_dataframe_in_local_db_split_insert_rows(
+        &self,
+        df: DataFrame,
+        schema_name: &str,
+        table_name: &str,
+    ) -> Result<(), anyhow::Error>;
+
+    async fn parallel_insert_dataframe_in_local_db_1(
+        &self,
+        df: DataFrame,
+        schema_name: &str,
+        table_name: &str,
+    ) -> Result<(), anyhow::Error>;
+
+    async fn parallel_insert_dataframe_in_local_db_2(
+        &self,
+        df: DataFrame,
+        schema_name: &str,
+        table_name: &str,
+    ) -> Result<(), anyhow::Error>;
     /// Upsert a DataFrame into the local database.
     ///
     /// # Arguments
@@ -345,6 +368,293 @@ impl PostgresOperator for PostgresOperatorImpl {
             .execute(&pg_pool)
             .await
             .expect("Failed to insert data into table");
+
+        Ok(())
+    }
+
+    async fn insert_dataframe_in_local_db_split_insert_rows(
+        &self,
+        df: DataFrame,
+        schema_name: &str,
+        table_name: &str,
+    ) -> Result<(), anyhow::Error> {
+        let pg_pool = self.db_client.clone();
+
+        let base_query = format!(
+            "INSERT INTO {}.{} ({}) VALUES ",
+            &schema_name,
+            &table_name,
+            df.schema()
+                .iter_fields()
+                .map(|f| f.name().to_string())
+                .collect::<Vec<_>>()
+                .join(", ")
+        );
+
+        let insert_rows_number = 10000;
+        let mut offset = 0;
+        println!("Initial no of rows: {}", df.height());
+
+        //for position in 0..df.height() {
+        while offset <= df.height().to_i64().expect("error") {
+            // Insert each row independently to avoid the bulk insert limit
+            let mut temp_query = base_query.clone();
+
+            println!("Offset: {}", offset);
+            let temp_df = df.slice(offset, insert_rows_number);
+
+            // Construct the query with placeholders
+            let mut values = Vec::new();
+
+            for row in 0..temp_df.height() {
+                let mut placeholders = Vec::new();
+                for column in temp_df.get_columns() {
+                    let value = column.get(row).unwrap();
+                    // Push the value to the placeholder vector
+                    placeholders.push(value);
+                }
+                // Push the placeholders to the values vector
+                values.push(placeholders);
+            }
+
+            temp_query.push_str(
+                &values
+                    .iter()
+                    .map(|row_values| {
+                        format!(
+                            "({})",
+                            row_values
+                                .iter()
+                                .map(|v| match v {
+                                    AnyValue::String(v) => self.process_string_value(v),
+                                    AnyValue::Datetime(_, _, _) => format!("'{}'", v),
+                                    AnyValue::Date(_) => format!("'{}'", v),
+                                    AnyValue::Decimal(integer, precision) =>
+                                        self.process_decimal_value(*integer, *precision),
+                                    AnyValue::Binary(v) => {
+                                        format!("'{:?}'", v)
+                                    }
+                                    AnyValue::Float64(v) => {
+                                        format!("{}", v)
+                                    }
+                                    _ => format!("{}", v),
+                                })
+                                .collect::<Vec<_>>()
+                                .join(", ")
+                        )
+                    })
+                    .collect::<Vec<_>>()
+                    .join(", "),
+            );
+
+            //println!("Query: {}", temp_query);
+            println!("No of rows: {}", temp_df.height());
+            sqlx::query(&temp_query)
+                .execute(&pg_pool)
+                .await
+                .expect("Failed to insert data into table");
+
+            offset += insert_rows_number.to_i64().expect("Error");
+        }
+
+        Ok(())
+    }
+
+    async fn parallel_insert_dataframe_in_local_db_1(
+        &self,
+        df: DataFrame,
+        schema_name: &str,
+        table_name: &str,
+    ) -> Result<(), anyhow::Error> {
+        let pg_pool = self.db_client.clone();
+
+        let base_query = format!(
+            "INSERT INTO {}.{} ({}) VALUES ",
+            &schema_name,
+            &table_name,
+            df.schema()
+                .iter_fields()
+                .map(|f| f.name().to_string())
+                .collect::<Vec<_>>()
+                .join(", ")
+        );
+
+        let insert_rows_number = 10000;
+        //let mut offset = 0;
+        println!("Initial no of rows: {}", df.height());
+
+        let results = (0..=df.height() / insert_rows_number)
+            .into_par_iter() // Parallel iteration
+            .map(|i| {
+                let offset = i * insert_rows_number;
+                let temp_base_query = base_query.clone();
+                let temp_pg_pool = pg_pool.clone();
+                let copied_df = df.clone();
+                async move {
+                    println!("Offset: {}, iter: {}", offset, i);
+                    let mut temp_query = temp_base_query.clone();
+                    let temp_df = copied_df.slice(offset.to_i64().unwrap(), insert_rows_number);
+
+                    // Construct the query with placeholders
+                    let mut values = Vec::new();
+
+                    for row in 0..temp_df.height() {
+                        let mut placeholders = Vec::new();
+                        for column in temp_df.get_columns() {
+                            let value = column.get(row).unwrap();
+                            // Push the value to the placeholder vector
+                            placeholders.push(value);
+                        }
+                        // Push the placeholders to the values vector
+                        values.push(placeholders);
+                    }
+
+                    temp_query.push_str(
+                        &values
+                            .iter()
+                            .map(|row_values| {
+                                format!(
+                                    "({})",
+                                    row_values
+                                        .iter()
+                                        .map(|v| match v {
+                                            AnyValue::String(v) => self.process_string_value(v),
+                                            AnyValue::Datetime(_, _, _) => format!("'{}'", v),
+                                            AnyValue::Date(_) => format!("'{}'", v),
+                                            AnyValue::Decimal(integer, precision) =>
+                                                self.process_decimal_value(*integer, *precision),
+                                            AnyValue::Binary(v) => {
+                                                format!("'{:?}'", v)
+                                            }
+                                            AnyValue::Float64(v) => {
+                                                format!("{}", v)
+                                            }
+                                            _ => format!("{}", v),
+                                        })
+                                        .collect::<Vec<_>>()
+                                        .join(", ")
+                                )
+                            })
+                            .collect::<Vec<_>>()
+                            .join(", "),
+                    );
+
+                    //println!("Query: {}", temp_query);
+                    println!("No of rows: {}", temp_df.height());
+                    //&temp_query
+                    sqlx::query(&temp_query)
+                        .execute(&temp_pg_pool)
+                        .await
+                        .expect("Failed to insert data into table");
+                }
+            })
+            .collect::<Vec<_>>();
+        let res = futures::future::join_all(results).await;
+
+        Ok(())
+    }
+
+    async fn parallel_insert_dataframe_in_local_db_2(
+        &self,
+        df: DataFrame,
+        schema_name: &str,
+        table_name: &str,
+    ) -> Result<(), anyhow::Error> {
+        let pg_pool = self.db_client.clone();
+
+        let base_query = format!(
+            "INSERT INTO {}.{} ({}) VALUES ",
+            &schema_name,
+            &table_name,
+            df.schema()
+                .iter_fields()
+                .map(|f| f.name().to_string())
+                .collect::<Vec<_>>()
+                .join(", ")
+        );
+
+        let insert_rows_number = 10000;
+        //let mut offset = 0;
+        println!("Initial no of rows: {}", df.height());
+
+        let tasks = (0..=df.height() / insert_rows_number)
+            .into_iter() // iteration
+            .map(|i| {
+                let offset = i * insert_rows_number;
+                let temp_base_query = base_query.clone();
+                let temp_pg_pool = pg_pool.clone();
+                let copied_df = df.clone();
+                tokio::spawn(async move {
+                    println!("Offset: {}, iter: {}", offset, i);
+                    let mut temp_query = temp_base_query.clone();
+                    let temp_df = copied_df.slice(offset.to_i64().unwrap(), insert_rows_number);
+
+                    // Construct the query with placeholders
+                    let mut values = Vec::new();
+
+                    for row in 0..temp_df.height() {
+                        let mut placeholders = Vec::new();
+                        for column in temp_df.get_columns() {
+                            let value = column.get(row).unwrap();
+                            // Push the value to the placeholder vector
+                            placeholders.push(value);
+                        }
+                        // Push the placeholders to the values vector
+                        values.push(placeholders);
+                    }
+
+                    temp_query.push_str(
+                        &values
+                            .iter()
+                            .map(|row_values| {
+                                format!(
+                                    "({})",
+                                    row_values
+                                        .iter()
+                                        .map(|v| match v {
+                                            AnyValue::String(v) => {
+                                                let v = v.replace('\'', "''");
+                                                format!("'{}'", v)
+                                            }
+                                            AnyValue::Datetime(_, _, _) => format!("'{}'", v),
+                                            AnyValue::Date(_) => format!("'{}'", v),
+                                            AnyValue::Decimal(integer, precision) => {
+                                                let decimal = Decimal::new(
+                                                    integer
+                                                        .to_i64()
+                                                        .expect("Could not convert value to i64"),
+                                                    precision
+                                                        .to_u32()
+                                                        .expect("Could not convert value to u32"),
+                                                );
+                                                format!("{:}", decimal)
+                                            }
+                                            AnyValue::Binary(v) => {
+                                                format!("'{:?}'", v)
+                                            }
+                                            AnyValue::Float64(v) => {
+                                                format!("{}", v)
+                                            }
+                                            _ => format!("{}", v),
+                                        })
+                                        .collect::<Vec<_>>()
+                                        .join(", ")
+                                )
+                            })
+                            .collect::<Vec<_>>()
+                            .join(", "),
+                    );
+
+                    //println!("Query: {}", temp_query);
+                    println!("No of rows: {}", temp_df.height());
+                    //&temp_query
+                    sqlx::query(&temp_query)
+                        .execute(&temp_pg_pool)
+                        .await
+                        .expect("Failed to insert data into table");
+                })
+            }).collect::<Vec<_>>();
+            let res = futures::future::join_all(tasks).await;
 
         Ok(())
     }

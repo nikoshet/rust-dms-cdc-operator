@@ -18,7 +18,7 @@ bytestr = "0.1.0"
 sqlx = { version = "0.7.4", features = ["postgres", "runtime-tokio", "tls-native-tls"] }
 clap = { version = "4.5.4", features = ["derive"], optional = true }
 colored = "2.1.0"
-polars = { version = "0.38.3", features = ["timezones", "json", "lazy", "aws", "parquet", "dtype-decimal", "streaming"]}
+polars = { version = "0.38.3", features = ["timezones", "json", "lazy", "aws", "parquet", "dtype-decimal", "streaming", "rows"]}
 chrono = "0.4.37"
 serde_json = { version = "1.0.115", features = ["preserve_order", "arbitrary_precision"] }
 serde = { version = "1.0", features = ["derive"] }
@@ -30,6 +30,8 @@ polars-utils = "0.38.3"
 mockall = "0.12.1"
 rust_decimal = "1.35.0"
 inquire = { version = "0.7.4", optional = true }
+rayon = "1.10.0"
+futures = "0.3.30"
 
 [features]
 default = ["with-inquire"]

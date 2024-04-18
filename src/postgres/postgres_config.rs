@@ -1,3 +1,4 @@
+use sqlx::postgres::PgPoolOptions;
 use sqlx::PgPool;
 use sqlx::{Pool, Postgres};
 
@@ -53,9 +54,15 @@ impl PostgresConfig {
     /// A connection pool to the Postgres database.
     pub async fn connect_to_postgres(&self) -> PgPool {
         let connection_string = self.postgres_url.to_string();
-        Pool::<Postgres>::connect(&connection_string)
+        PgPoolOptions::new()
+            .max_connections(100)
+            .connect(&connection_string)
             .await
             .expect("Failed to connect to DB")
+
+        // Pool::<Postgres>::connect(&connection_string)
+        //     .await
+        //     .expect("Failed to connect to DB")
     }
 
     /// Returns the connection string.

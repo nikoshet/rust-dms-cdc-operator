@@ -3,6 +3,7 @@ use log::info;
 use rust_pgdatadiff::diff::diff_ops::Differ;
 use rust_pgdatadiff::diff::diff_payload::DiffPayload;
 use std::borrow::Borrow;
+use std::time::Instant;
 
 use crate::postgres::postgres_config::PostgresConfig;
 use crate::postgres::postgres_ops::{PostgresOperator, PostgresOperatorImpl};
@@ -125,10 +126,12 @@ impl Validator {
             info!("{}", "Starting snapshotting...".bold().blue());
 
             for table_name in &self.table_names {
+                let start = Instant::now();
                 info!(
-                    "{} {}",
-                    "Running for table:".bold().magenta(),
-                    table_name.bold().magenta()
+                    "{}",
+                    format!("Running for table: {}", table_name)
+                        .bold()
+                        .magenta()
                 );
 
                 // Get the table columns
@@ -206,7 +209,11 @@ impl Validator {
                     {
                         info!("Processing LOAD file: {:?}", file);
                         local_postgres_operator
-                            .insert_dataframe_in_local_db(current_df, &schema_name, &table_name)
+                            .parallel_insert_dataframe_in_local_db_1(
+                                current_df,
+                                &schema_name,
+                                &table_name,
+                            )
                             .await
                             .unwrap_or_else(|_| {
                                 panic!("Failed to insert LOAD file {:?} into table", file)
@@ -232,6 +239,18 @@ impl Validator {
                 let _ = local_postgres_operator
                     .drop_dms_columns(db_client.schema_name(), table_name)
                     .await;
+
+                let elapsed = start.elapsed();
+                info!(
+                    "{}",
+                    format!(
+                        "Snapshot completed for table {} in: {}ms",
+                        table_name,
+                        elapsed.as_millis()
+                    )
+                    .yellow()
+                    .bold(),
+                );
             }
 
             info!("{}", "Snapshotting completed...".bold().blue());
@@ -242,9 +261,13 @@ impl Validator {
 
             // Run rust-pgdatadiff
             info!(
-                "{} {}",
-                "Running pgdatadiff with chunk size".bold().green(),
-                self.chunk_size.to_string().bold().green()
+                "{}",
+                format!(
+                    "Running pgdatadiff with chunk size {}",
+                    self.chunk_size.to_string()
+                )
+                .bold()
+                .green()
             );
             let payload = DiffPayload::new(
                 db_client.connection_string(),
