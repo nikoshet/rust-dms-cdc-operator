@@ -3,6 +3,7 @@ use log::info;
 use rust_pgdatadiff::diff::diff_ops::Differ;
 use rust_pgdatadiff::diff::diff_payload::DiffPayload;
 use std::borrow::Borrow;
+use std::time::Instant;
 
 use crate::postgres::postgres_config::PostgresConfig;
 use crate::postgres::postgres_operator::PostgresOperator;
@@ -23,6 +24,7 @@ pub struct Validator {
     start_date: String,
     stop_date: Option<String>,
     chunk_size: i64,
+    max_connections: u32,
     start_position: i64,
     only_datadiff: bool,
     only_snapshot: bool,
@@ -42,9 +44,10 @@ impl Validator {
     /// * `start_date` - Will be used to constract a key from which Amazon will start listing files after that key.
     /// * `stop_date` - Will be used to stop listing files after that date.
     /// * `chunk_size` - The chunk size for pgdatadiff validation.
+    /// * `max_connections` - The maximum number of connections to the Postgres database.
     /// * `start_position` - The start position for pgdatadiff validation.
     /// * `only_datadiff` - Whether to only validate the data difference.
-    /// * `only_snapshot` - Whether to only validate the snapshot.
+    /// * `only_snapshot` - Whether to only take a snapshot and skip validation.
     ///
     /// # Returns
     ///
@@ -60,6 +63,7 @@ impl Validator {
         start_date: impl Into<String>,
         stop_date: impl Into<Option<String>>,
         chunk_size: i64,
+        max_connections: u32,
         start_position: i64,
         only_datadiff: bool,
         only_snapshot: bool,
@@ -78,6 +82,7 @@ impl Validator {
             start_date: start_date.into(),
             stop_date: stop_date.into(),
             chunk_size,
+            max_connections,
             start_position,
             only_datadiff,
             only_snapshot,
@@ -94,6 +99,7 @@ impl Validator {
             self.postgres_url.clone(),
             self.database_schema.clone(),
             self.table_names.clone(),
+            self.max_connections,
         );
         let pg_pool = db_client.connect_to_postgres().await;
         // Create a PostgresOperatorImpl instance
@@ -104,6 +110,7 @@ impl Validator {
             self.local_postgres_url.clone(),
             "public",
             self.table_names.clone(),
+            self.max_connections,
         );
         let local_pg_pool = local_db_client.connect_to_postgres().await;
         // Create a PostgresOperatorImpl instance for the local database
@@ -126,22 +133,24 @@ impl Validator {
             info!("{}", "Starting snapshotting...".bold().blue());
 
             for table_name in &self.table_names {
+                let start = Instant::now();
                 info!(
-                    "{} {}",
-                    "Running for table:".bold().magenta(),
-                    table_name.bold().magenta()
+                    "{}",
+                    format!("Running for table: {}", table_name)
+                        .bold()
+                        .magenta()
                 );
 
                 // Get the table columns
                 info!("{}", "Getting table columns".bold().green());
-                let table_columns = postgres_operator
+                let source_table_columns: indexmap::IndexMap<String, String> = postgres_operator
                     .get_table_columns(db_client.schema_name(), table_name)
                     .await
                     .unwrap();
                 info!(
                     "Number of columns: {}, Columns: {:?}",
-                    table_columns.len(),
-                    table_columns
+                    source_table_columns.len(),
+                    source_table_columns
                 );
 
                 // Get the primary key for the table
@@ -156,7 +165,7 @@ impl Validator {
                 info!("{}", "Creating table in the local DB".bold().green());
                 let _ = local_postgres_operator
                     .create_table(
-                        &table_columns,
+                        &source_table_columns,
                         primary_key_list.clone(),
                         db_client.schema_name(),
                         table_name,
@@ -183,6 +192,7 @@ impl Validator {
                 for file in &parquet_files.unwrap() {
                     let bucket_name = self.bucket_name.clone();
                     let schema_name = self.database_schema.clone();
+                    let database_name = db_client.database_name().clone();
                     let table_name = table_name.clone();
                     let primary_keys = primary_key_list.clone().as_slice().join(",");
                     let local_postgres_operator = local_postgres_operator.borrow();
@@ -196,8 +206,6 @@ impl Validator {
                         })
                         .unwrap();
 
-                    //task::block_in_place(move || {
-                    //    Handle::current().block_on(async move {
                     if file
                         .split('/')
                         .collect::<Vec<&str>>()
@@ -206,8 +214,29 @@ impl Validator {
                         .contains("LOAD")
                     {
                         info!("Processing LOAD file: {:?}", file);
+                        // Check if the schema of the table is the same as the schema of the Parquet file
+                        // in case of altered column names or dropped columns
+                        let df_column_fields = current_df.get_columns();
+                        let has_schema_diff = df_column_fields
+                            .iter()
+                            .filter(|field| {
+                                field.name() != "Op" && field.name() != "_dms_ingestion_timestamp"
+                            })
+                            .any(|field| !source_table_columns.contains_key(field.name()));
+
+                        if has_schema_diff {
+                            panic!(
+                                "Schema of table is not the same as the schema of the Parquet file"
+                            );
+                        }
+
                         local_postgres_operator
-                            .insert_dataframe_in_local_db(current_df, &schema_name, &table_name)
+                            .insert_dataframe_in_local_db(
+                                current_df,
+                                &database_name,
+                                &schema_name,
+                                &table_name,
+                            )
                             .await
                             .unwrap_or_else(|_| {
                                 panic!("Failed to insert LOAD file {:?} into table", file)
@@ -217,6 +246,7 @@ impl Validator {
                         local_postgres_operator
                             .upsert_dataframe_in_local_db(
                                 current_df,
+                                &database_name,
                                 &schema_name,
                                 &table_name,
                                 &primary_keys,
@@ -233,6 +263,18 @@ impl Validator {
                 let _ = local_postgres_operator
                     .drop_dms_columns(db_client.schema_name(), table_name)
                     .await;
+
+                let elapsed = start.elapsed();
+                info!(
+                    "{}",
+                    format!(
+                        "Snapshot completed for table {} in: {}ms",
+                        table_name,
+                        elapsed.as_millis()
+                    )
+                    .yellow()
+                    .bold(),
+                );
             }
 
             info!("{}", "Snapshotting completed...".bold().blue());
@@ -243,9 +285,10 @@ impl Validator {
 
             // Run rust-pgdatadiff
             info!(
-                "{} {}",
-                "Running pgdatadiff with chunk size".bold().green(),
-                self.chunk_size.to_string().bold().green()
+                "{}",
+                format!("Running pgdatadiff with chunk size {}", self.chunk_size)
+                    .bold()
+                    .green()
             );
             let payload = DiffPayload::new(
                 db_client.connection_string(),
@@ -293,6 +336,7 @@ mod tests {
         let start_date = "2021-01-01";
         let stop_date = Some("2021-01-02".to_string());
         let chunk_size = 1000;
+        let max_connections = 100;
         let start_position = 0;
         let only_datadiff = true;
         let only_snapshot = true;
@@ -307,6 +351,7 @@ mod tests {
             start_date,
             stop_date,
             chunk_size,
+            max_connections,
             start_position,
             only_datadiff,
             only_snapshot,

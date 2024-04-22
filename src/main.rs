@@ -3,6 +3,7 @@ use anyhow::{Ok, Result};
 mod postgres;
 mod s3;
 mod validate;
+
 #[cfg(not(feature = "with-clap"))]
 use inquire::{Confirm, Text};
 
@@ -54,6 +55,9 @@ enum Commands {
         /// Datadiff chunk size
         #[arg(long, required = false, default_value = "1000")]
         chunk_size: i64,
+        /// Maximum connection pool size
+        #[arg(long, required = false, default_value = "100")]
+        max_connections: u32,
         /// Datadiff start position
         #[arg(long, required = false, default_value = "0")]
         start_position: i64,
@@ -90,6 +94,7 @@ async fn main_clap() -> Result<()> {
             start_date,
             stop_date,
             chunk_size,
+            max_connections,
             start_position,
             only_datadiff,
             only_snapshot,
@@ -104,6 +109,7 @@ async fn main_clap() -> Result<()> {
                 start_date,
                 stop_date,
                 chunk_size,
+                max_connections,
                 start_position,
                 only_datadiff,
                 only_snapshot,
@@ -164,6 +170,11 @@ async fn main_inquire() -> Result<()> {
         .with_help_message("Enter the chunk size for the data comparison")
         .prompt()?;
 
+    let max_connections = Text::new("Maximum connection pool size")
+        .with_default("100")
+        .with_help_message("Enter the maximum connection connections for the Postgres pool")
+        .prompt()?;
+
     let start_position = Text::new("Start position")
         .with_default("0")
         .with_help_message("Enter the start position for the data comparison")
@@ -193,6 +204,7 @@ async fn main_inquire() -> Result<()> {
             Some(stop_date)
         },
         chunk_size.parse::<i64>().unwrap(),
+        max_connections.parse::<u32>().unwrap(),
         start_position.parse::<i64>().unwrap(),
         only_datadiff,
         only_snapshot,
@@ -205,7 +217,8 @@ async fn main_inquire() -> Result<()> {
 
 #[::tokio::main]
 async fn main() -> Result<()> {
-    env_logger::init();
+    //env_logger::init();
+    tracing_subscriber::fmt::init();
 
     #[cfg(feature = "with-clap")]
     {

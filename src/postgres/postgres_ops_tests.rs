@@ -76,11 +76,11 @@ mod tests {
         postgres_operator
             .expect_insert_dataframe_in_local_db()
             .times(1)
-            .returning(|_, _, _| Ok(()));
+            .returning(|_, _, _, _| Ok(()));
 
         let df = DataFrame::new(vec![Series::new("column1", &[1, 2, 3])]).unwrap();
         postgres_operator
-            .insert_dataframe_in_local_db(df, "schema", "table")
+            .insert_dataframe_in_local_db(df, "database", "schema", "table")
             .await
             .unwrap();
     }
@@ -91,12 +91,13 @@ mod tests {
         postgres_operator
             .expect_upsert_dataframe_in_local_db()
             .times(1)
-            .returning(|_, _, _, _| Ok(()));
+            .returning(|_, _, _, _, _| Ok(()));
 
         let df = DataFrame::new(vec![Series::new("column1", &[1, 2, 3])]).unwrap();
         postgres_operator
             .upsert_dataframe_in_local_db(
                 df,
+                "database",
                 "schema",
                 "table",
                 &vec!["primary_key".to_string()].as_slice().join(","),

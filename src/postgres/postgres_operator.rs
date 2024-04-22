@@ -1,3 +1,4 @@
+use anyhow::Result;
 use async_trait::async_trait;
 
 #[cfg(test)]
@@ -74,6 +75,7 @@ pub trait PostgresOperator {
     /// # Arguments
     ///
     /// * `df` - The DataFrame to insert.
+    /// * `database_name` - The name of the database.
     /// * `schema_name` - The name of the schema.
     /// * `table_name` - The name of the table.
     ///
@@ -83,15 +85,17 @@ pub trait PostgresOperator {
     async fn insert_dataframe_in_local_db(
         &self,
         df: polars::frame::DataFrame,
+        database_name: &str,
         schema_name: &str,
         table_name: &str,
-    ) -> Result<(), anyhow::Error>;
+    ) -> Result<()>;
 
     /// Upsert a DataFrame into the local database.
     ///
     /// # Arguments
     ///
     /// * `df` - The DataFrame to upsert.
+    /// * `database_name` - The name of the database.
     /// * `schema_name` - The name of the schema.
     /// * `table_name` - The name of the table.
     /// * `primary_key` - The primary key of the table.
@@ -102,10 +106,11 @@ pub trait PostgresOperator {
     async fn upsert_dataframe_in_local_db(
         &self,
         df: polars::frame::DataFrame,
+        database_name: &str,
         schema_name: &str,
         table_name: &str,
         primary_key: &str,
-    ) -> Result<(), anyhow::Error>;
+    ) -> Result<()>;
 
     /// Drop the columns added by DMS.
     ///
