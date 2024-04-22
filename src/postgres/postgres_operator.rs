@@ -39,7 +39,7 @@ pub trait PostgresOperator {
         schema_name: &str,
     ) -> Result<Vec<String>, sqlx::Error>;
 
-    /// Create a schema in the local database.
+    /// Create a schema in the target database.
     ///
     /// # Arguments
     ///
@@ -50,7 +50,7 @@ pub trait PostgresOperator {
     /// A Result indicating success or failure.
     async fn create_schema(&self, schema_name: &str) -> Result<(), sqlx::Error>;
 
-    /// Create a table in the local database.
+    /// Create a table in the target database.
     ///
     /// # Arguments
     ///
@@ -70,7 +70,7 @@ pub trait PostgresOperator {
         table_name: &str,
     ) -> Result<(), sqlx::Error>;
 
-    /// Insert a DataFrame into the local database.
+    /// Insert a DataFrame into the target database.
     ///
     /// # Arguments
     ///
@@ -82,7 +82,7 @@ pub trait PostgresOperator {
     /// # Returns
     ///
     /// A Result indicating success or failure.
-    async fn insert_dataframe_in_local_db(
+    async fn insert_dataframe_in_target_db(
         &self,
         df: polars::frame::DataFrame,
         database_name: &str,
@@ -90,7 +90,7 @@ pub trait PostgresOperator {
         table_name: &str,
     ) -> Result<()>;
 
-    /// Upsert a DataFrame into the local database.
+    /// Upsert a DataFrame into the target database.
     ///
     /// # Arguments
     ///
@@ -103,7 +103,7 @@ pub trait PostgresOperator {
     /// # Returns
     ///
     /// A Result indicating success or failure.
-    async fn upsert_dataframe_in_local_db(
+    async fn upsert_dataframe_in_target_db(
         &self,
         df: polars::frame::DataFrame,
         database_name: &str,

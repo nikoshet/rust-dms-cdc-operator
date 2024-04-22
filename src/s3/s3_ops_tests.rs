@@ -9,12 +9,12 @@ mod tests {
     async fn test_get_list_of_parquet_files_from_s3() {
         let mut s3_operator = MockS3Operator::new();
 
-        let bucket_name = "bucket_name".to_string();
-        let s3_prefix = "s3_prefix".to_string();
-        let database_name = "database_name".to_string();
-        let database_schema = "database_schema".to_string();
-        let table_name = "table_name".to_string();
-        let start_date = "2021-01-01T00:00:00Z".to_string();
+        let bucket_name = "bucket_name";
+        let s3_prefix = "s3_prefix";
+        let database_name = "database_name";
+        let database_schema = "database_schema";
+        let table_name = "table_name";
+        let start_date = "2021-01-01T00:00:00Z";
         let stop_date = Some("2021-01-01T00:00:00Z".to_string());
 
         s3_operator

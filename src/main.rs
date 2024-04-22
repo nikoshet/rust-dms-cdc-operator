@@ -1,14 +1,24 @@
-use crate::validate::validator::Validator;
+use crate::{
+    postgres::{
+        postgres_config::PostgresConfig,
+        postgres_ops::{PostgresOperator, PostgresOperatorImpl},
+    },
+    s3::s3_ops::{create_s3_client, S3OperatorImpl},
+    validate::validator::Validator,
+};
 use anyhow::{Ok, Result};
+use colored::Colorize;
 mod postgres;
 mod s3;
 mod validate;
+use validate::validator_payload::ValidatorPayload;
 
 #[cfg(not(feature = "with-clap"))]
 use inquire::{Confirm, Text};
 
 #[cfg(feature = "with-clap")]
 use clap::{Parser, Subcommand};
+use tracing::info;
 
 #[cfg(feature = "with-clap")]
 #[derive(Parser)]
@@ -33,11 +43,11 @@ enum Commands {
         /// Url of the database to validate the CDC files
         /// Example: postgres://postgres:postgres@localhost:5432/mydb
         #[arg(long, required = true)]
-        postgres_url: String,
-        /// Url of the local database to import the parquet files
+        source_postgres_url: String,
+        /// Url of the target database to import the parquet files
         /// Example: postgres://postgres:postgres@localhost:5432/mydb
         #[arg(long, required = true)]
-        local_postgres_url: String,
+        target_postgres_url: String,
         /// Schema of database to validate against S3 files
         #[arg(long, required = false, default_value = "public")]
         database_schema: String,
@@ -69,7 +79,7 @@ enum Commands {
             conflicts_with("only_snapshot")
         )]
         only_datadiff: bool,
-        /// Take only a snapshot from S3 to local DB
+        /// Take only a snapshot from S3 to target DB
         #[arg(
             long,
             required = false,
@@ -81,14 +91,14 @@ enum Commands {
 }
 
 #[cfg(feature = "with-clap")]
-async fn main_clap() -> Result<()> {
+async fn main_clap() -> Result<ValidatorPayload> {
     let cli = Cli::parse();
     match cli.command {
         Commands::Validate {
             bucket_name,
             s3_prefix,
-            postgres_url,
-            local_postgres_url,
+            source_postgres_url,
+            target_postgres_url,
             database_schema,
             table_names,
             start_date,
@@ -99,11 +109,11 @@ async fn main_clap() -> Result<()> {
             only_datadiff,
             only_snapshot,
         } => {
-            let validator = Validator::new(
+            let payload = ValidatorPayload::new(
                 bucket_name,
                 s3_prefix,
-                postgres_url,
-                local_postgres_url,
+                source_postgres_url,
+                target_postgres_url,
                 database_schema,
                 table_names,
                 start_date,
@@ -115,14 +125,13 @@ async fn main_clap() -> Result<()> {
                 only_snapshot,
             );
 
-            let _ = validator.validate().await;
-            Ok(())
+            Ok(payload)
         }
     }
 }
 
 #[cfg(not(feature = "with-clap"))]
-async fn main_inquire() -> Result<()> {
+async fn main_inquire() -> Result<ValidatorPayload> {
     let bucket_name = Text::new("S3 Bucket name")
         .with_default("bucket_name")
         .with_help_message("Enter the S3 bucket where the CDC files are stored")
@@ -133,14 +142,14 @@ async fn main_inquire() -> Result<()> {
         .with_help_message("Enter the S3 prefix where the files are stored")
         .prompt()?;
 
-    let postgres_url = Text::new("Postgres URL")
+    let source_postgres_url = Text::new("Postgres URL")
         .with_default("postgres://postgres:postgres@localhost:5432/mydb")
-        .with_help_message("Enter the URL of the database to validate the CDC files")
+        .with_help_message("Enter the URL of the source database to validate the CDC files")
         .prompt()?;
 
-    let local_postgres_url = Text::new("Local Postgres URL")
+    let target_postgres_url = Text::new("Target Postgres URL")
         .with_default("postgres://postgres:postgres@localhost:5438/mydb")
-        .with_help_message("Enter the URL of the local database to import the parquet files")
+        .with_help_message("Enter the URL of the target database to import the parquet files")
         .prompt()?;
 
     let database_schema = Text::new("Database Schema")
@@ -187,14 +196,14 @@ async fn main_inquire() -> Result<()> {
 
     let only_snapshot = Confirm::new("Take only a snapshot")
         .with_default(false)
-        .with_help_message("Take only a snapshot from S3 to local DB (no data comparison)")
+        .with_help_message("Take only a snapshot from S3 to target DB (no data comparison)")
         .prompt()?;
 
-    let validator = Validator::new(
+    let payload = ValidatorPayload::new(
         bucket_name,
         s3_prefix,
-        postgres_url,
-        local_postgres_url,
+        source_postgres_url,
+        target_postgres_url,
         database_schema,
         table_names.split_whitespace().collect(),
         start_date,
@@ -210,9 +219,7 @@ async fn main_inquire() -> Result<()> {
         only_snapshot,
     );
 
-    let _ = validator.validate().await;
-
-    Ok(())
+    Ok(payload)
 }
 
 #[::tokio::main]
@@ -220,14 +227,60 @@ async fn main() -> Result<()> {
     //env_logger::init();
     tracing_subscriber::fmt::init();
 
+    let validator_payload;
+
     #[cfg(feature = "with-clap")]
     {
-        _ = main_clap().await;
+        validator_payload = main_clap().await?;
     }
     #[cfg(not(feature = "with-clap"))]
     {
-        _ = main_inquire().await;
+        validator_payload = main_inquire().await?;
     }
+
+    // Connect to the Postgres database
+    info!("{}", "Connecting to source Postgres DB".bold().green());
+    let db_client = PostgresConfig::new(
+        validator_payload.source_postgres_url(),
+        validator_payload.database_name(),
+        validator_payload.table_names().to_vec().clone(),
+        validator_payload.max_connections(),
+    );
+    let pg_pool = db_client.connect_to_postgres().await;
+    // Create a PostgresOperatorImpl instance
+    let postgres_operator = PostgresOperatorImpl::new(pg_pool);
+
+    info!("{}", "Connecting to target Postgres DB".bold().green());
+    let target_db_client: PostgresConfig = PostgresConfig::new(
+        validator_payload.target_postgres_url(),
+        "public",
+        validator_payload.table_names().to_vec().clone(),
+        validator_payload.max_connections(),
+    );
+    let target_pg_pool = target_db_client.connect_to_postgres().await;
+    // Create a PostgresOperatorImpl instance for the target database
+    let target_postgres_operator = PostgresOperatorImpl::new(target_pg_pool);
+
+    // Create an S3 client
+    info!("{}", "Creating S3 client".bold().green());
+    let client = create_s3_client().await;
+    // Create an S3OperatorImpl instance
+    let s3_operator = S3OperatorImpl::new(client);
+
+    let _ = Validator::snapshot(
+        validator_payload.clone(),
+        &postgres_operator,
+        &target_postgres_operator,
+        s3_operator,
+    )
+    .await;
+
+    let _ = Validator::validate(validator_payload.clone()).await;
+
+    // Close the connection pool
+    info!("{}", "Closing connection pool".bold().green());
+    postgres_operator.close_connection_pool().await;
+    target_postgres_operator.close_connection_pool().await;
 
     Ok(())
 }

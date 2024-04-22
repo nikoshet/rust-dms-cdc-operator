@@ -1,6 +1,7 @@
 use sqlx::postgres::PgPoolOptions;
 use sqlx::PgPool;
 
+#[allow(dead_code)]
 /// Represents a Postgres config that connects to a Postgres database.
 pub struct PostgresConfig {
     postgres_url: String,
@@ -8,6 +9,8 @@ pub struct PostgresConfig {
     table_names: Vec<String>,
     max_connections: u32,
 }
+
+#[allow(dead_code)]
 impl PostgresConfig {
     /// Creates a new Postgres config.
     ///
