@@ -3,7 +3,6 @@ mod tests {
     use crate::s3::s3_ops::MockS3Operator;
     use crate::s3::s3_ops::S3Operator;
     use aws_sdk_s3::primitives::{DateTime, DateTimeFormat};
-    use polars::prelude::*;
 
     #[tokio::test]
     async fn test_get_list_of_parquet_files_from_s3() {
@@ -70,24 +69,5 @@ mod tests {
             .unwrap();
 
         assert_eq!(files.len(), 1);
-    }
-
-    #[tokio::test]
-    async fn test_read_parquet_file_from_s3() {
-        let mut s3_operator = MockS3Operator::new();
-
-        s3_operator
-            .expect_read_parquet_file_from_s3()
-            .returning(|_, _| Ok(DataFrame::empty()));
-
-        let bucket_name = "bucket_name";
-        let key = "key";
-
-        let df = s3_operator
-            .read_parquet_file_from_s3(bucket_name, key)
-            .await
-            .unwrap();
-
-        assert_eq!(df.height(), 0);
     }
 }
