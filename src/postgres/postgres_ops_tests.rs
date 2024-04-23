@@ -71,31 +71,31 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_insert_dataframe_in_local_db() {
+    async fn test_insert_dataframe_in_target_db() {
         let mut postgres_operator = MockPostgresOperator::new();
         postgres_operator
-            .expect_insert_dataframe_in_local_db()
+            .expect_insert_dataframe_in_target_db()
             .times(1)
             .returning(|_, _, _, _| Ok(()));
 
         let df = DataFrame::new(vec![Series::new("column1", &[1, 2, 3])]).unwrap();
         postgres_operator
-            .insert_dataframe_in_local_db(df, "database", "schema", "table")
+            .insert_dataframe_in_target_db(df, "database", "schema", "table")
             .await
             .unwrap();
     }
 
     #[tokio::test]
-    async fn test_upsert_dataframe_in_local_db() {
+    async fn test_upsert_dataframe_in_target_db() {
         let mut postgres_operator = MockPostgresOperator::new();
         postgres_operator
-            .expect_upsert_dataframe_in_local_db()
+            .expect_upsert_dataframe_in_target_db()
             .times(1)
             .returning(|_, _, _, _, _| Ok(()));
 
         let df = DataFrame::new(vec![Series::new("column1", &[1, 2, 3])]).unwrap();
         postgres_operator
-            .upsert_dataframe_in_local_db(
+            .upsert_dataframe_in_target_db(
                 df,
                 "database",
                 "schema",

@@ -131,7 +131,7 @@ impl PostgresOperator for PostgresOperatorImpl {
     }
 
     #[instrument(name = "Insert data into table", skip(self))]
-    async fn insert_dataframe_in_local_db(
+    async fn insert_dataframe_in_target_db(
         &self,
         df: DataFrame,
         database_name: &str,
@@ -201,7 +201,7 @@ impl PostgresOperator for PostgresOperatorImpl {
     }
 
     #[instrument(name = "Upsert data into table", skip(self))]
-    async fn upsert_dataframe_in_local_db(
+    async fn upsert_dataframe_in_target_db(
         &self,
         df: DataFrame,
         database_name: &str,

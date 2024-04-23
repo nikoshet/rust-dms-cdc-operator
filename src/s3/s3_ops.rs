@@ -30,12 +30,12 @@ pub trait S3Operator {
     #[allow(clippy::too_many_arguments)]
     async fn get_list_of_parquet_files_from_s3(
         &self,
-        bucket_name: String,
-        s3_prefix: String,
-        database_name: String,
-        database_schema: String,
-        table_name: String,
-        start_date: String,
+        bucket_name: &str,
+        s3_prefix: &str,
+        database_name: &str,
+        database_schema: &str,
+        table_name: &str,
+        start_date: &str,
         stop_date: Option<String>,
     ) -> Result<Vec<String>>;
 
@@ -92,12 +92,12 @@ impl S3OperatorImpl {
 impl S3Operator for S3OperatorImpl {
     async fn get_list_of_parquet_files_from_s3(
         &self,
-        bucket_name: String,
-        s3_prefix: String,
-        database_name: String,
-        database_schema: String,
-        table_name: String,
-        start_date: String,
+        bucket_name: &str,
+        s3_prefix: &str,
+        database_name: &str,
+        database_schema: &str,
+        table_name: &str,
+        start_date: &str,
         stop_date: Option<String>,
     ) -> Result<Vec<String>> {
         let prefix_path = format!(
@@ -105,13 +105,13 @@ impl S3Operator for S3OperatorImpl {
             s3_prefix, database_name, database_schema, table_name
         );
 
-        let iter_start_date = NaiveDate::parse_from_str(&start_date, "%Y-%m-%dT%H:%M:%SZ")?;
+        let iter_start_date = NaiveDate::parse_from_str(start_date, "%Y-%m-%dT%H:%M:%SZ")?;
         let year = iter_start_date.year();
         let month = format!("{:02}", iter_start_date.month());
         let day = format!("{:02}", iter_start_date.day());
         let start_date_path = format!("{}/{}/{}/{}/", prefix_path, year, month, day);
 
-        let start_date = DateTime::from_str(&start_date, DateTimeFormat::DateTimeWithOffset)?;
+        let start_date = DateTime::from_str(start_date, DateTimeFormat::DateTimeWithOffset)?;
         let stop_date = if stop_date.is_none() {
             None
         } else {
@@ -124,7 +124,7 @@ impl S3Operator for S3OperatorImpl {
         let mut files_list: Vec<String>;
         files_list = Self::get_files_from_s3_based_on_date(
             self,
-            &bucket_name,
+            bucket_name,
             start_date_path,
             format!("{}/", prefix_path),
             start_date,
