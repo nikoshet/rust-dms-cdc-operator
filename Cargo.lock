@@ -3385,18 +3385,15 @@ dependencies = [
 
 [[package]]
 name = "rust-cdc-validator"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "async-trait",
- "aws-config",
  "aws-sdk-s3",
  "bytes",
  "chrono",
- "clap",
  "colored",
  "indexmap",
- "inquire",
  "log",
  "mockall",
  "polars",
@@ -3407,6 +3404,21 @@ dependencies = [
  "serde",
  "serde_json",
  "sqlx",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "rust-cdc-validator-client"
+version = "0.1.2"
+dependencies = [
+ "anyhow",
+ "aws-config",
+ "aws-sdk-s3",
+ "clap",
+ "colored",
+ "inquire",
+ "rust-cdc-validator",
  "tokio",
  "tracing",
  "tracing-subscriber",

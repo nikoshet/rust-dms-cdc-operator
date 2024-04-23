@@ -7,6 +7,15 @@ use polars::prelude::*;
 #[cfg(test)]
 use mockall::automock;
 
+#[derive(Clone)]
+pub struct CreateDataframePayload {
+    pub bucket_name: String,
+    pub key: String,
+    pub database_name: String,
+    pub schema_name: String,
+    pub table_name: String,
+}
+
 #[cfg_attr(test, automock)]
 #[async_trait]
 pub trait DataframeOperator {
@@ -14,16 +23,14 @@ pub trait DataframeOperator {
     ///
     /// # Arguments
     ///
-    /// * `bucket_name` - The name of the S3 bucket
-    /// * `key` - The key of the file
+    /// * `payload` - The payload to create a DataFrame from a Parquet file.
     ///
     /// # Returns
     ///
     /// A DataFrame.
     async fn create_dataframe_from_parquet_file(
         &self,
-        bucket_name: String,
-        key: String,
+        payload: CreateDataframePayload,
     ) -> Result<DataFrame>;
 }
 
@@ -41,8 +48,7 @@ impl<'a> DataframeOperatorImpl<'a> {
 impl DataframeOperator for DataframeOperatorImpl<'_> {
     async fn create_dataframe_from_parquet_file(
         &self,
-        bucket_name: String,
-        key: String,
+        payload: CreateDataframePayload,
     ) -> Result<DataFrame> {
         // If we used LazyFrame, we would have an issue with tokio, since we should have to block on the tokio runtime untill the
         // result is ready with .collect(). To avoid this, we use the ParquetReader, which is a synchronous reader.
@@ -61,8 +67,8 @@ impl DataframeOperator for DataframeOperatorImpl<'_> {
         let object = self
             .s3_client
             .get_object()
-            .bucket(bucket_name)
-            .key(key)
+            .bucket(payload.bucket_name)
+            .key(payload.key)
             .send()
             .await
             .unwrap();
@@ -85,7 +91,9 @@ impl DataframeOperator for DataframeOperatorImpl<'_> {
 mod tests {
     use polars::frame::DataFrame;
 
-    use crate::dataframe::dataframe_ops::{DataframeOperator, MockDataframeOperator};
+    use crate::dataframe::dataframe_ops::{
+        CreateDataframePayload, DataframeOperator, MockDataframeOperator,
+    };
 
     #[tokio::test]
     async fn test_create_dataframe_from_parquet_file() {
@@ -93,13 +101,18 @@ mod tests {
 
         dataframe_operator
             .expect_create_dataframe_from_parquet_file()
-            .returning(|_, _| Ok(DataFrame::empty()));
+            .returning(|_| Ok(DataFrame::empty()));
 
-        let bucket_name = "bucket_name".to_string();
-        let key = "key".to_string();
+        let create_dataframe_payload = CreateDataframePayload {
+            bucket_name: "bucket_name".to_string(),
+            key: "key".to_string(),
+            database_name: "database_name".to_string(),
+            schema_name: "schema_name".to_string(),
+            table_name: "table_name".to_string(),
+        };
 
         let df = dataframe_operator
-            .create_dataframe_from_parquet_file(bucket_name, key)
+            .create_dataframe_from_parquet_file(create_dataframe_payload)
             .await
             .unwrap();
 

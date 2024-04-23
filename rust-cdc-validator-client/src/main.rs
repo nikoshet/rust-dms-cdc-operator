@@ -1,25 +1,21 @@
-use crate::{
-    postgres::{
-        postgres_config::PostgresConfig,
-        postgres_ops::{PostgresOperator, PostgresOperatorImpl},
-    },
-    s3::s3_ops::{create_s3_client, S3OperatorImpl},
-    validate::validator::Validator,
-};
 use anyhow::{Ok, Result};
+use aws_sdk_s3::Client as S3Client;
 use colored::Colorize;
-mod dataframe;
-mod postgres;
-mod s3;
-mod validate;
-use dataframe::dataframe_ops::DataframeOperatorImpl;
-use validate::validator_payload::ValidatorPayload;
 
 #[cfg(not(feature = "with-clap"))]
 use inquire::{Confirm, Text};
 
 #[cfg(feature = "with-clap")]
 use clap::{Parser, Subcommand};
+use rust_cdc_validator::{
+    cdc::{cdc_operator::CDCOperator, cdc_operator_payload::CDCOperatorPayload},
+    dataframe::dataframe_ops::DataframeOperatorImpl,
+    postgres::{
+        postgres_config::PostgresConfig, postgres_operator::PostgresOperator,
+        postgres_ops::PostgresOperatorImpl,
+    },
+    s3::s3_ops::S3OperatorImpl,
+};
 use tracing::info;
 
 #[cfg(feature = "with-clap")]
@@ -93,7 +89,7 @@ enum Commands {
 }
 
 #[cfg(feature = "with-clap")]
-async fn main_clap() -> Result<ValidatorPayload> {
+fn main_clap() -> Result<ValidatorPayload> {
     let cli = Cli::parse();
     match cli.command {
         Commands::Validate {
@@ -133,7 +129,7 @@ async fn main_clap() -> Result<ValidatorPayload> {
 }
 
 #[cfg(not(feature = "with-clap"))]
-async fn main_inquire() -> Result<ValidatorPayload> {
+fn main_inquire() -> Result<CDCOperatorPayload> {
     let bucket_name = Text::new("S3 Bucket name")
         .with_default("bucket_name")
         .with_help_message("Enter the S3 bucket where the CDC files are stored")
@@ -201,7 +197,7 @@ async fn main_inquire() -> Result<ValidatorPayload> {
         .with_help_message("Take only a snapshot from S3 to target DB (no data comparison)")
         .prompt()?;
 
-    let payload = ValidatorPayload::new(
+    let payload = CDCOperatorPayload::new(
         bucket_name,
         s3_prefix,
         source_postgres_url,
@@ -226,27 +222,26 @@ async fn main_inquire() -> Result<ValidatorPayload> {
 
 #[::tokio::main]
 async fn main() -> Result<()> {
-    //env_logger::init();
     tracing_subscriber::fmt::init();
 
-    let validator_payload;
+    let cdc_operator_payload;
 
     #[cfg(feature = "with-clap")]
     {
-        validator_payload = main_clap().await?;
+        cdc_operator_payload = main_clap()?;
     }
     #[cfg(not(feature = "with-clap"))]
     {
-        validator_payload = main_inquire().await?;
+        cdc_operator_payload = main_inquire()?;
     }
 
     // Connect to the Postgres database
     info!("{}", "Connecting to source Postgres DB".bold().green());
     let db_client = PostgresConfig::new(
-        validator_payload.source_postgres_url(),
-        validator_payload.database_name(),
-        validator_payload.table_names().to_vec().clone(),
-        validator_payload.max_connections(),
+        cdc_operator_payload.source_postgres_url(),
+        cdc_operator_payload.database_name(),
+        cdc_operator_payload.table_names().to_vec().clone(),
+        cdc_operator_payload.max_connections(),
     );
     let pg_pool = db_client.connect_to_postgres().await;
     // Create a PostgresOperatorImpl instance
@@ -254,10 +249,10 @@ async fn main() -> Result<()> {
 
     info!("{}", "Connecting to target Postgres DB".bold().green());
     let target_db_client: PostgresConfig = PostgresConfig::new(
-        validator_payload.target_postgres_url(),
+        cdc_operator_payload.target_postgres_url(),
         "public",
-        validator_payload.table_names().to_vec().clone(),
-        validator_payload.max_connections(),
+        cdc_operator_payload.table_names().to_vec().clone(),
+        cdc_operator_payload.max_connections(),
     );
     let target_pg_pool = target_db_client.connect_to_postgres().await;
     // Create a PostgresOperatorImpl instance for the target database
@@ -271,8 +266,8 @@ async fn main() -> Result<()> {
 
     let dataframe_operator = DataframeOperatorImpl::new(&client);
 
-    let _ = Validator::snapshot(
-        validator_payload.clone(),
+    let _ = CDCOperator::snapshot(
+        cdc_operator_payload.clone(),
         &postgres_operator,
         &target_postgres_operator,
         s3_operator,
@@ -280,7 +275,7 @@ async fn main() -> Result<()> {
     )
     .await;
 
-    let _ = Validator::validate(validator_payload.clone()).await;
+    let _ = CDCOperator::validate(cdc_operator_payload.clone()).await;
 
     // Close the connection pool
     info!("{}", "Closing connection pool".bold().green());
@@ -288,4 +283,9 @@ async fn main() -> Result<()> {
     target_postgres_operator.close_connection_pool().await;
 
     Ok(())
+}
+
+async fn create_s3_client() -> S3Client {
+    let config = aws_config::load_from_env().await;
+    S3Client::new(&config)
 }

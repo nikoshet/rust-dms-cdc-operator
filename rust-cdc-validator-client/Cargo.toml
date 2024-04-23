@@ -1,0 +1,30 @@
+[package]
+name = "rust-cdc-validator-client"
+version = "0.1.2"
+edition = "2021"
+license = "MIT"
+description = "The rust-cdc-validator is a Rust-based client for comparing the state of a list of tables in an Amazon RDS database with data stored in Parquet files on Amazon S3, particularly useful for change data capture (CDC) scenarios"
+readme = "../README.md"
+homepage = "https://github.com/nikoshet/rust-cdc-validator"
+repository = "https://github.com/nikoshet/rust-cdc-validator"
+keywords = ["postgres", "s3", "cdc", "parquet", "polars"]
+documentation = "https://docs.rs/rust-cdc-validator-client"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+clap = { version = "4.5.4", features = ["derive"], optional = true }
+inquire = { version = "0.7.4", optional = true }
+colored = "2.1.0"
+anyhow = "1.0"
+tokio = { version = "1", features = ["full"] }
+rust-cdc-validator = { version = "0.1.2", path = ".." }
+tracing-subscriber = "0.3.18"
+tracing = "0.1.40"
+aws-config = { version = "1.1.7", features = ["behavior-version-latest"] }
+aws-sdk-s3 = "1.21.0"
+
+[features]
+default = ["with-inquire"]
+with-inquire = ["dep:inquire"]
+with-clap = ["dep:clap"]

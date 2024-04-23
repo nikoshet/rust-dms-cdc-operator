@@ -5,20 +5,20 @@ use rust_pgdatadiff::diff::diff_payload::DiffPayload;
 
 use std::time::Instant;
 
-use super::validator_payload::ValidatorPayload;
-use crate::dataframe::dataframe_ops::DataframeOperator;
+use super::cdc_operator_payload::CDCOperatorPayload;
+use crate::dataframe::dataframe_ops::{CreateDataframePayload, DataframeOperator};
 use crate::postgres::postgres_operator::PostgresOperator;
 use crate::s3::s3_ops::S3Operator;
 
 const EMPTY_STRING_VEC: Vec<String> = Vec::new();
 
-/// Represents a validator that validates the data between S3 and a target database.
-pub struct Validator;
+/// Represents a CDC Operator that validates the data between S3 and a target database.
+pub struct CDCOperator;
 
-impl Validator {
+impl CDCOperator {
     /// Takes a snpashot of the data stored in S3 and replicates them in a target database.
     pub async fn snapshot(
-        validator_payload: ValidatorPayload,
+        cdc_operator_payload: CDCOperatorPayload,
         source_postgres_operator: &impl PostgresOperator,
         target_postgres_operator: &impl PostgresOperator,
         s3_operator: impl S3Operator,
@@ -29,14 +29,14 @@ impl Validator {
         // Create the schema in the target database
         info!("{}", "Creating schema in the target DB".bold().green());
         let _ = target_postgres_operator
-            .create_schema(validator_payload.schema_name())
+            .create_schema(cdc_operator_payload.schema_name())
             .await;
 
         // Check if only_datadiff is true
-        if !validator_payload.only_datadiff() {
+        if !cdc_operator_payload.only_datadiff() {
             info!("{}", "Starting snapshotting...".bold().blue());
 
-            for table_name in &validator_payload.table_names().to_vec() {
+            for table_name in &cdc_operator_payload.table_names().to_vec() {
                 let start = Instant::now();
                 info!(
                     "{}",
@@ -49,7 +49,7 @@ impl Validator {
                 info!("{}", "Getting table columns".bold().green());
                 let source_table_columns: indexmap::IndexMap<String, String> =
                     source_postgres_operator
-                        .get_table_columns(validator_payload.schema_name(), table_name)
+                        .get_table_columns(cdc_operator_payload.schema_name(), table_name)
                         .await
                         .unwrap();
                 info!(
@@ -61,7 +61,7 @@ impl Validator {
                 // Get the primary key for the table
                 info!("{}", "Getting primary key".bold().green());
                 let primary_key_list = source_postgres_operator
-                    .get_primary_key(table_name, validator_payload.schema_name())
+                    .get_primary_key(table_name, cdc_operator_payload.schema_name())
                     .await
                     .unwrap();
                 info!("Primary key(s): {:?}", primary_key_list);
@@ -72,7 +72,7 @@ impl Validator {
                     .create_table(
                         &source_table_columns,
                         primary_key_list.clone(),
-                        validator_payload.schema_name(),
+                        cdc_operator_payload.schema_name(),
                         table_name,
                     )
                     .await;
@@ -81,13 +81,13 @@ impl Validator {
                 info!("{}", "Getting list of Parquet files from S3".bold().green());
                 let parquet_files = s3_operator
                     .get_list_of_parquet_files_from_s3(
-                        validator_payload.bucket_name(),
-                        validator_payload.s3_prefix(),
-                        &validator_payload.database_name(),
-                        validator_payload.schema_name(),
+                        cdc_operator_payload.bucket_name(),
+                        cdc_operator_payload.s3_prefix(),
+                        &cdc_operator_payload.database_name(),
+                        cdc_operator_payload.schema_name(),
                         table_name,
-                        validator_payload.start_date(),
-                        validator_payload.stop_date().map(|s| s.to_string()),
+                        cdc_operator_payload.start_date(),
+                        cdc_operator_payload.stop_date().map(|s| s.to_string()),
                     )
                     .await;
 
@@ -95,17 +95,16 @@ impl Validator {
                 info!("{}", "Reading Parquet files from S3".bold().green());
 
                 for file in &parquet_files.unwrap() {
-                    let bucket_name = validator_payload.bucket_name();
-                    let schema_name = validator_payload.schema_name();
-                    let database_name = validator_payload.database_name().clone();
-                    let table_name = table_name.clone();
-                    let primary_keys = primary_key_list.clone().as_slice().join(",");
+                    let create_dataframe_payload = CreateDataframePayload {
+                        bucket_name: cdc_operator_payload.bucket_name().to_string(),
+                        key: file.to_string(),
+                        database_name: cdc_operator_payload.database_name(),
+                        schema_name: cdc_operator_payload.schema_name().to_string(),
+                        table_name: table_name.clone(),
+                    };
 
                     let current_df = dataframe_operator
-                        .create_dataframe_from_parquet_file(
-                            bucket_name.to_string(),
-                            file.to_string(),
-                        )
+                        .create_dataframe_from_parquet_file(create_dataframe_payload.clone())
                         .await
                         .map_err(|e| {
                             panic!("Error reading Parquet file: {:?}", e);
@@ -140,8 +139,8 @@ impl Validator {
                         target_postgres_operator
                             .insert_dataframe_in_target_db(
                                 current_df,
-                                &database_name,
-                                schema_name,
+                                &create_dataframe_payload.database_name,
+                                &create_dataframe_payload.schema_name,
                                 &table_name,
                             )
                             .await
@@ -150,11 +149,13 @@ impl Validator {
                             })
                     } else {
                         info!("Processing CDC file: {:?}", file);
+                        let primary_keys = primary_key_list.clone().as_slice().join(",");
+
                         target_postgres_operator
                             .upsert_dataframe_in_target_db(
                                 current_df,
-                                &database_name,
-                                schema_name,
+                                &create_dataframe_payload.database_name,
+                                &create_dataframe_payload.schema_name,
                                 &table_name,
                                 &primary_keys,
                             )
@@ -168,7 +169,7 @@ impl Validator {
                 // Drop the columns added by DMS
                 info!("{}", "Dropping columns added by DMS".bold().green());
                 let _ = target_postgres_operator
-                    .drop_dms_columns(validator_payload.schema_name(), table_name)
+                    .drop_dms_columns(cdc_operator_payload.schema_name(), table_name)
                     .await;
 
                 let elapsed = start.elapsed();
@@ -189,8 +190,8 @@ impl Validator {
     }
 
     /// Validates the data between S3 and a target database.
-    pub async fn validate(validator_payload: ValidatorPayload) {
-        if !validator_payload.only_snapshot() {
+    pub async fn validate(cdc_operator_payload: CDCOperatorPayload) {
+        if !cdc_operator_payload.only_snapshot() {
             info!("{}", "Starting pgdatadiff...".bold().blue());
 
             // Run rust-pgdatadiff
@@ -198,23 +199,23 @@ impl Validator {
                 "{}",
                 format!(
                     "Running pgdatadiff with chunk size {}",
-                    validator_payload.chunk_size()
+                    cdc_operator_payload.chunk_size()
                 )
                 .bold()
                 .green()
             );
             let payload = DiffPayload::new(
-                validator_payload.source_postgres_url(),
-                validator_payload.target_postgres_url(),
-                true,                               //only-tables
-                false,                              //only-sequences
-                false,                              //only-count
-                validator_payload.chunk_size(),     //chunk-size
-                validator_payload.start_position(), //start-position
-                100,                                //max-connections
-                validator_payload.table_names().to_vec(),
+                cdc_operator_payload.source_postgres_url(),
+                cdc_operator_payload.target_postgres_url(),
+                true,                                  //only-tables
+                false,                                 //only-sequences
+                false,                                 //only-count
+                cdc_operator_payload.chunk_size(),     //chunk-size
+                cdc_operator_payload.start_position(), //start-position
+                100,                                   //max-connections
+                cdc_operator_payload.table_names().to_vec(),
                 EMPTY_STRING_VEC,
-                validator_payload.schema_name(),
+                cdc_operator_payload.schema_name(),
             );
             let diff_result = Differ::diff_dbs(payload).await;
             if diff_result.is_err() {

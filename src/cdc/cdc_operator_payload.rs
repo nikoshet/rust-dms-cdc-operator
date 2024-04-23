@@ -1,6 +1,6 @@
-/// Represents a validator payload that validates the data between S3 and a target database.
+/// Represents a CDC Operator payload that validates the data between S3 and a target database.
 #[derive(Clone)]
-pub struct ValidatorPayload {
+pub struct CDCOperatorPayload {
     bucket_name: String,
     s3_prefix: String,
     source_postgres_url: String,
@@ -16,8 +16,8 @@ pub struct ValidatorPayload {
     only_snapshot: bool,
 }
 
-impl ValidatorPayload {
-    /// Creates a new validator payload.
+impl CDCOperatorPayload {
+    /// Creates a new CDC Operator payload.
     ///
     /// # Arguments
     ///
@@ -157,7 +157,7 @@ mod tests {
         let only_datadiff = true;
         let only_snapshot = true;
 
-        let _validator = ValidatorPayload::new(
+        let _validator = CDCOperatorPayload::new(
             bucket_name,
             s3_prefix,
             source_postgres_url,
