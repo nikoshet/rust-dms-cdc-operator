@@ -2,11 +2,18 @@
 name = "rust-cdc-validator"
 version = "0.1.0"
 edition = "2021"
+license = "MIT"
+description = "The rust-cdc-validator is a Rust-based utility for comparing the state of a list of tables in an Amazon RDS database with data stored in Parquet files on Amazon S3, particularly useful for change data capture (CDC) scenarios"
+readme = "README.md"
+homepage = "https://github.com/nikoshet/rust-cdc-validator"
+repository = "https://github.com/pavlospt/rust-cdc-validator"
+keywords = ["postgres", "aws", "s3", "cdc", "parquet", "polars"]
+documentation = "https://docs.rs/rust-cdc-validator"
+
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-aws-config = { version = "1.1.7", features = ["behavior-version-latest"] }
 aws-sdk-s3 = "1.21.0"
 tokio = { version = "1", features = ["full"] }
 anyhow = "1.0"
@@ -17,7 +24,6 @@ sqlx = { version = "0.7.4", features = [
     "runtime-tokio",
     "tls-native-tls",
 ] }
-clap = { version = "4.5.4", features = ["derive"], optional = true }
 colored = "2.1.0"
 polars = { version = "0.39.2", features = [
     "timezones",
@@ -40,13 +46,17 @@ rust-pgdatadiff = "0.1.4"
 indexmap = { version = "2.2.6", features = ["serde"] }
 polars-core = "0.39.2"
 polars-utils = "0.39.2"
-mockall = "0.12.1"
 rust_decimal = "1.35.0"
-inquire = { version = "0.7.4", optional = true }
-tracing-subscriber = "0.3.18"
 tracing = "0.1.40"
 
-[features]
-default = ["with-inquire"]
-with-inquire = ["dep:inquire"]
-with-clap = ["dep:clap"]
+[dev-dependencies]
+mockall = "0.12.1"
+
+[lib]
+test = true
+edition = "2021"
+crate-type = ["lib"]
+name = "rust_cdc_validator"
+
+[workspace]
+members = ["rust-cdc-validator-client"]

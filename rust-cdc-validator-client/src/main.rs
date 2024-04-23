@@ -1,25 +1,21 @@
-use crate::{
-    postgres::{
-        postgres_config::PostgresConfig,
-        postgres_ops::{PostgresOperator, PostgresOperatorImpl},
-    },
-    s3::s3_ops::{create_s3_client, S3OperatorImpl},
-    validate::validator::Validator,
-};
 use anyhow::{Ok, Result};
+use aws_sdk_s3::Client as S3Client;
 use colored::Colorize;
-mod dataframe;
-mod postgres;
-mod s3;
-mod validate;
-use dataframe::dataframe_ops::DataframeOperatorImpl;
-use validate::validator_payload::ValidatorPayload;
 
 #[cfg(not(feature = "with-clap"))]
 use inquire::{Confirm, Text};
 
 #[cfg(feature = "with-clap")]
 use clap::{Parser, Subcommand};
+use rust_cdc_validator::{
+    dataframe::dataframe_ops::DataframeOperatorImpl,
+    postgres::{
+        postgres_config::PostgresConfig, postgres_operator::PostgresOperator,
+        postgres_ops::PostgresOperatorImpl,
+    },
+    s3::s3_ops::S3OperatorImpl,
+    validate::{validator::Validator, validator_payload::ValidatorPayload},
+};
 use tracing::info;
 
 #[cfg(feature = "with-clap")]
@@ -93,7 +89,7 @@ enum Commands {
 }
 
 #[cfg(feature = "with-clap")]
-async fn main_clap() -> Result<ValidatorPayload> {
+fn main_clap() -> Result<ValidatorPayload> {
     let cli = Cli::parse();
     match cli.command {
         Commands::Validate {
@@ -133,7 +129,7 @@ async fn main_clap() -> Result<ValidatorPayload> {
 }
 
 #[cfg(not(feature = "with-clap"))]
-async fn main_inquire() -> Result<ValidatorPayload> {
+fn main_inquire() -> Result<ValidatorPayload> {
     let bucket_name = Text::new("S3 Bucket name")
         .with_default("bucket_name")
         .with_help_message("Enter the S3 bucket where the CDC files are stored")
@@ -226,18 +222,17 @@ async fn main_inquire() -> Result<ValidatorPayload> {
 
 #[::tokio::main]
 async fn main() -> Result<()> {
-    //env_logger::init();
     tracing_subscriber::fmt::init();
 
     let validator_payload;
 
     #[cfg(feature = "with-clap")]
     {
-        validator_payload = main_clap().await?;
+        validator_payload = main_clap()?;
     }
     #[cfg(not(feature = "with-clap"))]
     {
-        validator_payload = main_inquire().await?;
+        validator_payload = main_inquire()?;
     }
 
     // Connect to the Postgres database
@@ -288,4 +283,9 @@ async fn main() -> Result<()> {
     target_postgres_operator.close_connection_pool().await;
 
     Ok(())
+}
+
+async fn create_s3_client() -> S3Client {
+    let config = aws_config::load_from_env().await;
+    S3Client::new(&config)
 }

@@ -184,8 +184,3 @@ impl S3Operator for S3OperatorImpl<'_> {
         Ok(files)
     }
 }
-
-pub async fn create_s3_client() -> S3Client {
-    let config = aws_config::load_from_env().await;
-    S3Client::new(&config)
-}
