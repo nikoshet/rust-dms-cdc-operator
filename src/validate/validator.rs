@@ -2,10 +2,11 @@ use colored::Colorize;
 use log::info;
 use rust_pgdatadiff::diff::diff_ops::Differ;
 use rust_pgdatadiff::diff::diff_payload::DiffPayload;
-use std::borrow::Borrow;
+
 use std::time::Instant;
 
 use super::validator_payload::ValidatorPayload;
+use crate::dataframe::dataframe_ops::DataframeOperator;
 use crate::postgres::postgres_operator::PostgresOperator;
 use crate::s3::s3_ops::S3Operator;
 
@@ -21,6 +22,7 @@ impl Validator {
         source_postgres_operator: &impl PostgresOperator,
         target_postgres_operator: &impl PostgresOperator,
         s3_operator: impl S3Operator,
+        dataframe_operator: impl DataframeOperator,
     ) {
         info!("{}", "Starting snapshotting...".bold().purple());
 
@@ -98,11 +100,12 @@ impl Validator {
                     let database_name = validator_payload.database_name().clone();
                     let table_name = table_name.clone();
                     let primary_keys = primary_key_list.clone().as_slice().join(",");
-                    let target_postgres_operator = target_postgres_operator.borrow();
-                    let s3_operator = s3_operator.borrow();
 
-                    let current_df = s3_operator
-                        .read_parquet_file_from_s3(bucket_name, file)
+                    let current_df = dataframe_operator
+                        .create_dataframe_from_parquet_file(
+                            bucket_name.to_string(),
+                            file.to_string(),
+                        )
                         .await
                         .map_err(|e| {
                             panic!("Error reading Parquet file: {:?}", e);

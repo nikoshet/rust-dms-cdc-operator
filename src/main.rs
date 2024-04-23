@@ -8,9 +8,11 @@ use crate::{
 };
 use anyhow::{Ok, Result};
 use colored::Colorize;
+mod dataframe;
 mod postgres;
 mod s3;
 mod validate;
+use dataframe::dataframe_ops::DataframeOperatorImpl;
 use validate::validator_payload::ValidatorPayload;
 
 #[cfg(not(feature = "with-clap"))]
@@ -265,13 +267,16 @@ async fn main() -> Result<()> {
     info!("{}", "Creating S3 client".bold().green());
     let client = create_s3_client().await;
     // Create an S3OperatorImpl instance
-    let s3_operator = S3OperatorImpl::new(client);
+    let s3_operator = S3OperatorImpl::new(&client);
+
+    let dataframe_operator = DataframeOperatorImpl::new(&client);
 
     let _ = Validator::snapshot(
         validator_payload.clone(),
         &postgres_operator,
         &target_postgres_operator,
         s3_operator,
+        dataframe_operator,
     )
     .await;
 

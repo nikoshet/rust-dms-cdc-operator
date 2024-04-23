@@ -4,7 +4,6 @@ use aws_sdk_s3::primitives::{DateTime, DateTimeFormat};
 use aws_sdk_s3::Client as S3Client;
 use chrono::{Datelike, NaiveDate};
 use log::{debug, info};
-use polars::prelude::*;
 
 #[cfg(test)]
 use mockall::automock;
@@ -60,36 +59,20 @@ pub trait S3Operator {
         start_date: DateTime,
         stop_date: Option<DateTime>,
     ) -> Result<Vec<String>>;
-
-    /// Reads a Parquet file from S3.
-    ///
-    /// # Arguments
-    ///
-    /// * `bucket_name` - The name of the S3 bucket
-    /// * `key` - The key of the file
-    ///
-    /// # Returns
-    ///
-    /// A DataFrame.
-    async fn read_parquet_file_from_s3(&self, bucket_name: &str, key: &str) -> Result<DataFrame>;
 }
 
-pub struct S3OperatorImpl {
-    s3_client: S3Client,
+pub struct S3OperatorImpl<'a> {
+    s3_client: &'a S3Client,
 }
 
-impl S3OperatorImpl {
-    pub fn new(s3_client: S3Client) -> Self {
+impl<'a> S3OperatorImpl<'a> {
+    pub fn new(s3_client: &'a S3Client) -> Self {
         Self { s3_client }
-    }
-
-    pub fn get_s3_client(&self) -> &S3Client {
-        &self.s3_client
     }
 }
 
 #[async_trait]
-impl S3Operator for S3OperatorImpl {
+impl S3Operator for S3OperatorImpl<'_> {
     async fn get_list_of_parquet_files_from_s3(
         &self,
         bucket_name: &str,
@@ -152,7 +135,7 @@ impl S3Operator for S3OperatorImpl {
 
         loop {
             let builder = self
-                .get_s3_client()
+                .s3_client
                 .list_objects_v2()
                 .bucket(bucket_name)
                 .start_after(&start_date_path)
@@ -199,43 +182,6 @@ impl S3Operator for S3OperatorImpl {
             }
         }
         Ok(files)
-    }
-
-    async fn read_parquet_file_from_s3(&self, bucket_name: &str, key: &str) -> Result<DataFrame> {
-        // If we used LazyFrame, we would have an issue with tokio, since we should have to block on the tokio runtime untill the
-        // result is ready with .collect(). To avoid this, we use the ParquetReader, which is a synchronous reader.
-        // For LazyFrame, we would have to use the following code:
-        // let full_path = format!("s3://{}/{}", bucket_name, &key);
-        // let df = LazyFrame::scan_parquet(full_path, ScanArgsParquet::default())?
-        //     .with_streaming(true)
-        //     .select([
-        //         // select all columns
-        //         all(),
-        //     ])
-        //     .collect()?;
-        // debug!("{:?}", df.schema());
-        // Ok(df)
-
-        let object = self
-            .get_s3_client()
-            .get_object()
-            .bucket(bucket_name)
-            .key(key)
-            .send()
-            .await
-            .unwrap();
-
-        let bytes = object.body.collect().await.unwrap().into_bytes();
-        let cursor = std::io::Cursor::new(bytes);
-
-        let reader = ParquetReader::new(cursor);
-        let df = reader
-            .read_parallel(ParallelStrategy::RowGroups)
-            .finish()
-            .unwrap();
-        debug!("First row: {:?}", df.get(0).unwrap());
-        debug!("{:?}", df.schema());
-        Ok(df)
     }
 }
 
