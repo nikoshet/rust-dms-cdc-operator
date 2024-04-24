@@ -1,6 +1,6 @@
 [package]
 name = "rust-cdc-validator"
-version = "0.1.3"
+version = "0.1.4"
 edition = "2021"
 license = "MIT"
 description = "The rust-cdc-validator is a Rust-based utility for comparing the state of a list of tables in an Amazon RDS database with data stored in Parquet files on Amazon S3, particularly useful for change data capture (CDC) scenarios"
@@ -9,9 +9,7 @@ homepage = "https://github.com/nikoshet/rust-cdc-validator"
 repository = "https://github.com/nikoshet/rust-cdc-validator"
 keywords = ["postgres", "s3", "cdc", "parquet", "polars"]
 documentation = "https://docs.rs/rust-cdc-validator"
-exclude = [
-    "script.sh"
-]
+exclude = ["script.sh"]
 
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html

@@ -277,17 +277,19 @@ async fn main() -> Result<()> {
         cdc_operator_payload.table_names().to_vec(),
         cdc_operator_payload.start_date(),
         cdc_operator_payload.stop_date().map(|x| x.to_string()),
-        cdc_operator_payload.only_datadiff(),
     );
 
-    let _ = CDCOperator::snapshot(
-        cdc_operator_snapshot_payload,
-        &postgres_operator,
-        &target_postgres_operator,
-        s3_operator,
-        dataframe_operator,
-    )
-    .await;
+    if !cdc_operator_payload.only_datadiff() {
+        info!("{}", "Running snapshot...".bold().blue());
+        let _ = CDCOperator::snapshot(
+            cdc_operator_snapshot_payload,
+            &postgres_operator,
+            &target_postgres_operator,
+            s3_operator,
+            dataframe_operator,
+        )
+        .await;
+    }
 
     if cdc_operator_payload.only_snapshot() {
         info!("{}", "Skipping validation...".bold().blue());

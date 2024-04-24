@@ -7,7 +7,6 @@ pub struct CDCOperatorSnapshotPayload {
     pub table_names: Vec<String>,
     pub start_date: String,
     pub stop_date: Option<String>,
-    pub only_datadiff: bool,
 }
 
 impl CDCOperatorSnapshotPayload {
@@ -20,7 +19,6 @@ impl CDCOperatorSnapshotPayload {
         table_names: Vec<impl Into<String>>,
         start_date: impl Into<String>,
         stop_date: Option<String>,
-        only_datadiff: bool,
     ) -> Self {
         CDCOperatorSnapshotPayload {
             bucket_name: bucket_name.into(),
@@ -30,7 +28,6 @@ impl CDCOperatorSnapshotPayload {
             table_names: table_names.into_iter().map(|x| x.into()).collect(),
             start_date: start_date.into(),
             stop_date,
-            only_datadiff,
         }
     }
 
