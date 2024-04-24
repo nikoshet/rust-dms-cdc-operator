@@ -25,20 +25,12 @@ impl CDCOperator {
         s3_operator: impl S3Operator,
         dataframe_operator: impl DataframeOperator,
     ) {
-        info!("{}", "Starting snapshotting...".bold().purple());
-
-        // Create the schema in the target database
         info!("{}", "Creating schema in the target DB".bold().green());
         let _ = target_postgres_operator
             .create_schema(cdc_operator_snapshot_payload.schema_name().as_str())
             .await;
 
-        if cdc_operator_snapshot_payload.only_datadiff() {
-            info!("Skipping snapshotting as only_datadiff is needed");
-            return;
-        }
-
-        info!("{}", "Starting snapshotting...".bold().blue());
+        info!("{}", "Starting snapshotting...".bold().purple());
 
         for table_name in &cdc_operator_snapshot_payload.table_names() {
             let start = Instant::now();
