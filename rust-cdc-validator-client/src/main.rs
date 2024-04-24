@@ -8,7 +8,10 @@ use inquire::{Confirm, Text};
 #[cfg(feature = "with-clap")]
 use clap::{Parser, Subcommand};
 use rust_cdc_validator::{
-    cdc::{cdc_operator::CDCOperator, cdc_operator_payload::CDCOperatorPayload},
+    cdc::{
+        cdc_operator::CDCOperator, cdc_operator_payload::CDCOperatorPayload,
+        snapshot_payload::CDCOperatorSnapshotPayload, validate_payload::CDCOperatorValidatePayload,
+    },
     dataframe::dataframe_ops::DataframeOperatorImpl,
     postgres::{
         postgres_config::PostgresConfig, postgres_operator::PostgresOperator,
@@ -266,8 +269,19 @@ async fn main() -> Result<()> {
 
     let dataframe_operator = DataframeOperatorImpl::new(&client);
 
+    let cdc_operator_snapshot_payload = CDCOperatorSnapshotPayload::new(
+        cdc_operator_payload.bucket_name(),
+        cdc_operator_payload.s3_prefix(),
+        cdc_operator_payload.database_name(),
+        cdc_operator_payload.schema_name(),
+        cdc_operator_payload.table_names().to_vec(),
+        cdc_operator_payload.start_date(),
+        cdc_operator_payload.stop_date().map(|x| x.to_string()),
+        cdc_operator_payload.only_datadiff(),
+    );
+
     let _ = CDCOperator::snapshot(
-        cdc_operator_payload.clone(),
+        cdc_operator_snapshot_payload,
         &postgres_operator,
         &target_postgres_operator,
         s3_operator,
@@ -275,7 +289,21 @@ async fn main() -> Result<()> {
     )
     .await;
 
-    let _ = CDCOperator::validate(cdc_operator_payload.clone()).await;
+    if cdc_operator_payload.only_snapshot() {
+        info!("{}", "Skipping validation...".bold().blue());
+        return Ok(());
+    }
+
+    let cdc_operator_validate_payload = CDCOperatorValidatePayload::new(
+        cdc_operator_payload.source_postgres_url(),
+        cdc_operator_payload.target_postgres_url(),
+        cdc_operator_payload.table_names().to_vec(),
+        cdc_operator_payload.schema_name(),
+        cdc_operator_payload.chunk_size(),
+        cdc_operator_payload.start_position(),
+    );
+
+    let _ = CDCOperator::validate(cdc_operator_validate_payload).await;
 
     // Close the connection pool
     info!("{}", "Closing connection pool".bold().green());

@@ -5,7 +5,8 @@ use rust_pgdatadiff::diff::diff_payload::DiffPayload;
 
 use std::time::Instant;
 
-use super::cdc_operator_payload::CDCOperatorPayload;
+use super::snapshot_payload::CDCOperatorSnapshotPayload;
+use super::validate_payload::CDCOperatorValidatePayload;
 use crate::dataframe::dataframe_ops::{CreateDataframePayload, DataframeOperator};
 use crate::postgres::postgres_operator::PostgresOperator;
 use crate::s3::s3_ops::S3Operator;
@@ -18,7 +19,7 @@ pub struct CDCOperator;
 impl CDCOperator {
     /// Takes a snpashot of the data stored in S3 and replicates them in a target database.
     pub async fn snapshot(
-        cdc_operator_payload: CDCOperatorPayload,
+        cdc_operator_snapshot_payload: CDCOperatorSnapshotPayload,
         source_postgres_operator: &impl PostgresOperator,
         target_postgres_operator: &impl PostgresOperator,
         s3_operator: impl S3Operator,
@@ -29,14 +30,14 @@ impl CDCOperator {
         // Create the schema in the target database
         info!("{}", "Creating schema in the target DB".bold().green());
         let _ = target_postgres_operator
-            .create_schema(cdc_operator_payload.schema_name())
+            .create_schema(cdc_operator_snapshot_payload.schema_name().as_str())
             .await;
 
         // Check if only_datadiff is true
-        if !cdc_operator_payload.only_datadiff() {
+        if !cdc_operator_snapshot_payload.only_datadiff {
             info!("{}", "Starting snapshotting...".bold().blue());
 
-            for table_name in &cdc_operator_payload.table_names().to_vec() {
+            for table_name in &cdc_operator_snapshot_payload.table_names() {
                 let start = Instant::now();
                 info!(
                     "{}",
@@ -49,7 +50,10 @@ impl CDCOperator {
                 info!("{}", "Getting table columns".bold().green());
                 let source_table_columns: indexmap::IndexMap<String, String> =
                     source_postgres_operator
-                        .get_table_columns(cdc_operator_payload.schema_name(), table_name)
+                        .get_table_columns(
+                            cdc_operator_snapshot_payload.schema_name().as_str(),
+                            table_name,
+                        )
                         .await
                         .unwrap();
                 info!(
@@ -61,7 +65,10 @@ impl CDCOperator {
                 // Get the primary key for the table
                 info!("{}", "Getting primary key".bold().green());
                 let primary_key_list = source_postgres_operator
-                    .get_primary_key(table_name, cdc_operator_payload.schema_name())
+                    .get_primary_key(
+                        table_name,
+                        cdc_operator_snapshot_payload.schema_name().as_str(),
+                    )
                     .await
                     .unwrap();
                 info!("Primary key(s): {:?}", primary_key_list);
@@ -72,7 +79,7 @@ impl CDCOperator {
                     .create_table(
                         &source_table_columns,
                         primary_key_list.clone(),
-                        cdc_operator_payload.schema_name(),
+                        cdc_operator_snapshot_payload.schema_name().as_str(),
                         table_name,
                     )
                     .await;
@@ -81,13 +88,15 @@ impl CDCOperator {
                 info!("{}", "Getting list of Parquet files from S3".bold().green());
                 let parquet_files = s3_operator
                     .get_list_of_parquet_files_from_s3(
-                        cdc_operator_payload.bucket_name(),
-                        cdc_operator_payload.s3_prefix(),
-                        &cdc_operator_payload.database_name(),
-                        cdc_operator_payload.schema_name(),
+                        cdc_operator_snapshot_payload.bucket_name().as_str(),
+                        cdc_operator_snapshot_payload.key().as_str(),
+                        cdc_operator_snapshot_payload.database_name().as_str(),
+                        cdc_operator_snapshot_payload.schema_name().as_str(),
                         table_name,
-                        cdc_operator_payload.start_date(),
-                        cdc_operator_payload.stop_date().map(|s| s.to_string()),
+                        cdc_operator_snapshot_payload.start_date().as_str(),
+                        cdc_operator_snapshot_payload
+                            .stop_date()
+                            .map(|s| s.to_string()),
                     )
                     .await;
 
@@ -96,10 +105,10 @@ impl CDCOperator {
 
                 for file in &parquet_files.unwrap() {
                     let create_dataframe_payload = CreateDataframePayload {
-                        bucket_name: cdc_operator_payload.bucket_name().to_string(),
+                        bucket_name: cdc_operator_snapshot_payload.bucket_name(),
                         key: file.to_string(),
-                        database_name: cdc_operator_payload.database_name(),
-                        schema_name: cdc_operator_payload.schema_name().to_string(),
+                        database_name: cdc_operator_snapshot_payload.database_name(),
+                        schema_name: cdc_operator_snapshot_payload.schema_name(),
                         table_name: table_name.clone(),
                     };
 
@@ -141,7 +150,7 @@ impl CDCOperator {
                                 current_df,
                                 &create_dataframe_payload.database_name,
                                 &create_dataframe_payload.schema_name,
-                                &table_name,
+                                table_name,
                             )
                             .await
                             .unwrap_or_else(|_| {
@@ -156,7 +165,7 @@ impl CDCOperator {
                                 current_df,
                                 &create_dataframe_payload.database_name,
                                 &create_dataframe_payload.schema_name,
-                                &table_name,
+                                table_name,
                                 &primary_keys,
                             )
                             .await
@@ -169,7 +178,10 @@ impl CDCOperator {
                 // Drop the columns added by DMS
                 info!("{}", "Dropping columns added by DMS".bold().green());
                 let _ = target_postgres_operator
-                    .drop_dms_columns(cdc_operator_payload.schema_name(), table_name)
+                    .drop_dms_columns(
+                        cdc_operator_snapshot_payload.schema_name.as_str(),
+                        table_name,
+                    )
                     .await;
 
                 let elapsed = start.elapsed();
@@ -190,40 +202,38 @@ impl CDCOperator {
     }
 
     /// Validates the data between S3 and a target database.
-    pub async fn validate(cdc_operator_payload: CDCOperatorPayload) {
-        if !cdc_operator_payload.only_snapshot() {
-            info!("{}", "Starting pgdatadiff...".bold().blue());
+    pub async fn validate(cdc_operator_validate_payload: CDCOperatorValidatePayload) {
+        info!("{}", "Starting pgdatadiff...".bold().blue());
 
-            // Run rust-pgdatadiff
-            info!(
-                "{}",
-                format!(
-                    "Running pgdatadiff with chunk size {}",
-                    cdc_operator_payload.chunk_size()
-                )
-                .bold()
-                .green()
-            );
-            let payload = DiffPayload::new(
-                cdc_operator_payload.source_postgres_url(),
-                cdc_operator_payload.target_postgres_url(),
-                true,                                  //only-tables
-                false,                                 //only-sequences
-                false,                                 //only-count
-                cdc_operator_payload.chunk_size(),     //chunk-size
-                cdc_operator_payload.start_position(), //start-position
-                100,                                   //max-connections
-                cdc_operator_payload.table_names().to_vec(),
-                EMPTY_STRING_VEC,
-                cdc_operator_payload.schema_name(),
-            );
-            let diff_result = Differ::diff_dbs(payload).await;
-            if diff_result.is_err() {
-                panic!("Failed to run pgdatadiff: {:?}", diff_result.err().unwrap());
-            }
-
-            info!("{}", "Pgdatadiff completed...".bold().blue());
+        // Run rust-pgdatadiff
+        info!(
+            "{}",
+            format!(
+                "Running pgdatadiff with chunk size {}",
+                cdc_operator_validate_payload.chunk_size()
+            )
+            .bold()
+            .green()
+        );
+        let payload = DiffPayload::new(
+            cdc_operator_validate_payload.source_postgres_url(),
+            cdc_operator_validate_payload.target_postgres_url(),
+            true,                                           //only-tables
+            false,                                          //only-sequences
+            false,                                          //only-count
+            cdc_operator_validate_payload.chunk_size(),     //chunk-size
+            cdc_operator_validate_payload.start_position(), //start-position
+            100,                                            //max-connections
+            cdc_operator_validate_payload.table_names().to_vec(),
+            EMPTY_STRING_VEC,
+            cdc_operator_validate_payload.schema_name(),
+        );
+        let diff_result = Differ::diff_dbs(payload).await;
+        if diff_result.is_err() {
+            panic!("Failed to run pgdatadiff: {:?}", diff_result.err().unwrap());
         }
+
+        info!("{}", "Pgdatadiff completed...".bold().blue());
 
         info!("{}", "Validator finished...".bold().purple());
     }
