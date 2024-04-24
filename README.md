@@ -2,16 +2,16 @@
 
 ## Overview
 
-The `rust-cdc-validator` is a Rust-based utility designed to compare the state of a table in an Amazon RDS (PostgreSQL) database with the data migrated from Amazon RDS to Amazon S3 using AWS Database Migration Service (DMS). This tool is particularly useful for validating the consistency of data between the RDS database and the Parquet files stored in S3, especially when the S3 files are populated with change data capture (CDC) updates, since DMS validation is not yet supported with S3 as target.
-
+The `rust-cdc-validator` is a Rust-based tool that compares tables in an Amazon RDS (PostgreSQL) database with data migrated to Amazon S3 using AWS Database Migration Service (DMS). It's particularly useful for ensuring data consistency between the RDS database and Parquet files in S3, especially with change data capture (CDC) updates, since DMS validation with S3 as target isn't supported yet.
 
 ## Features
 
 - Import a snapshot of the CDC parquet data stored in AWS S3 with date-based folder partitioning in a locally deployed Postgres
-- Specify a specific time range to replicate the S3 state on a Postgres
+- Specify a specific time range to replicate the S3 state on a Postgres DB
 - Restore the RDS state from S3 in case of data loss
 - Compare the state of a specific table in an Amazon RDS database with the data stored in Parquet files in the S3 bucket
 - Identify differences at the row level by modifying the validated chunk size
+- Use it as a library so as to integrate it in your projects, or as a client so as to use it as a standalone tool 
 
 
 ## Prerequisites
@@ -21,16 +21,17 @@ The `rust-cdc-validator` is a Rust-based utility designed to compare the state o
 - The target of the task is AWS S3 with:
     - Parquet formatted files
     - date-based folder partitioning
-    - Additional columns of `Op` and `_dms_ingestion_timestamp` injected by DMS
+    - Additional column of `Op` injected by DMS
 
 
-## Usage
+## Installation (Client)
+In order to use the tool as a client, you can use `cargo`.
 
 The tool provides two features for running it, which are `Inquire` and `Clap`.
 
 ### Using Clap
 ```shell
-Usage: rust-cdc-validator validate [OPTIONS] --bucket-name <BUCKET_NAME> --s3-prefix <S3_PREFIX> --source-postgres-url <SOURCE_POSTGRES_URL> --target-postgres-url <TARGET_POSTGRES_URL> --table-names [<TABLE_NAMES>...] --start-date <START_DATE>
+Usage: rust-cdc-validator-client validate [OPTIONS] --bucket-name <BUCKET_NAME> --s3-prefix <S3_PREFIX> --source-postgres-url <SOURCE_POSTGRES_URL> --target-postgres-url <TARGET_POSTGRES_URL> --table-names [<TABLE_NAMES>...] --start-date <START_DATE>
 
 Options:
       --bucket-name <BUCKET_NAME>
@@ -58,7 +59,7 @@ Options:
       --only-datadiff
           Run only the datadiff
       --only-snapshot
-          Take only a snapshot from S3 to local DB
+          Take only a snapshot from S3 to target DB
   -h, --help
           Print help
   -V, --version
@@ -69,6 +70,12 @@ Options:
 ### Using Inquire
 ```shell
 rust-cdc-validator --features="with-inquire"
+```
+
+## Installation (Library)
+In order to use the tool as a library, you can run:
+```
+cargo add rust-cdc-validator
 ```
 
 
@@ -88,26 +95,13 @@ cargo clippy --all
 
 cargo build
 
-RUST_LOG=rust_cdc_validator=info,rust_pgdatadiff=info cargo run --features="with-clap" validate --bucket-name my-bucket --s3-prefix prefix/path --source-postgres-url postgres://postgres:postgres@localhost:5432/mydb1 --target-postgres-url postgres://postgres:postgres@localhost:5438/mydb --database-schema public --table-name mytable --start-date 2024-02-14T10:00:00Z --chunk-size 100
+RUST_LOG=rust_cdc_validator=info,rust_pgdatadiff=info cargo run --features="with-clap" validate --bucket-name my-bucket --s3-prefix prefix/path --source-postgres-url postgres://postgres:postgres@localhost:5432/mydb1 --target-postgres-url postgres://postgres:postgres@localhost:5438/mydb --database-schema public --table-names mytable --start-date 2024-02-14T10:00:00Z --chunk-size 100
 ```
 
 For more debugging, you can enable Rust related logs by exporting the following:
 ```
 export RUST_LOG=rust_cdc_validator=debug,rust_pgdatadiff=debug
 ```
-
-
-## Crates
-
-Some crates utilized that are worth mentioning:
-
-- [polars](https://crates.io/crates/polars)
-- [rust-pgdatadiff](https://crates.io/crates/rust-pgdatadiff)
-- [tokio](https://crates.io/crates/tokio)
-- [clap](https://crates.io/crates/clap)
-- [inquire](https://crates.io/crates/inquire)
-- [parquet](https://crates.io/crates/parquet)
-- [sqlx](https://crates.io/crates/sqlx)
 
 
 ## License

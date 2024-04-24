@@ -7,7 +7,6 @@ pub enum TableQuery {
     FindPrimaryKey(String, String),
     CreateSchema(String),
     CreateTable(String, String, IndexMap<String, String>, String),
-    DropDmsColumns(String, String),
 }
 
 impl Display for TableQuery {
@@ -62,10 +61,6 @@ impl Display for TableQuery {
             TableQuery::CreateTable(schema, table, column_data_types, primary_key) => {
                 let mut query = format!("CREATE TABLE IF NOT EXISTS {}.{} (", schema, table);
 
-                // Add columns added on S3
-                query.push_str(&format!("{} {},", "Op", "varchar"));
-                query.push_str(&format!("{} {},", "_dms_ingestion_timestamp", "varchar"));
-
                 for (column, data_type) in column_data_types {
                     query.push_str(&format!("{} {},", column, data_type));
                 }
@@ -73,18 +68,6 @@ impl Display for TableQuery {
                 query.push(')');
 
                 write!(f, "{}", query)
-            }
-            TableQuery::DropDmsColumns(schema, table) => {
-                write!(
-                    f,
-                    // language=postgresql
-                    r#"
-                    ALTER TABLE {}.{}
-                    DROP COLUMN IF EXISTS Op,
-                    DROP COLUMN IF EXISTS _dms_ingestion_timestamp
-                    "#,
-                    schema, table
-                )
             }
         }
     }
@@ -168,20 +151,7 @@ mod tests {
         );
         assert_eq!(
             query.to_string(),
-            "CREATE TABLE IF NOT EXISTS schema.table (Op varchar,_dms_ingestion_timestamp varchar,column1 varchar,column2 int,PRIMARY KEY (primary_key,primary_key2))"
-        );
-    }
-
-    #[test]
-    fn test_display_drop_dms_columns() {
-        let query = TableQuery::DropDmsColumns("schema".to_string(), "table".to_string());
-        assert_eq!(
-            query.to_string(),
-            r#"
-                    ALTER TABLE schema.table
-                    DROP COLUMN IF EXISTS Op,
-                    DROP COLUMN IF EXISTS _dms_ingestion_timestamp
-                    "#
+            "CREATE TABLE IF NOT EXISTS schema.table (column1 varchar,column2 int,PRIMARY KEY (primary_key,primary_key2))"
         );
     }
 }
