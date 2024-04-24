@@ -5,7 +5,7 @@ pub struct CDCOperatorSnapshotPayload {
     pub database_name: String,
     pub schema_name: String,
     pub table_names: Vec<String>,
-    pub start_date: String,
+    pub start_date: Option<String>,
     pub stop_date: Option<String>,
 }
 
@@ -17,7 +17,7 @@ impl CDCOperatorSnapshotPayload {
         database_name: impl Into<String>,
         schema_name: impl Into<String>,
         table_names: Vec<impl Into<String>>,
-        start_date: impl Into<String>,
+        start_date: Option<String>,
         stop_date: Option<String>,
     ) -> Self {
         CDCOperatorSnapshotPayload {
@@ -26,7 +26,7 @@ impl CDCOperatorSnapshotPayload {
             database_name: database_name.into(),
             schema_name: schema_name.into(),
             table_names: table_names.into_iter().map(|x| x.into()).collect(),
-            start_date: start_date.into(),
+            start_date,
             stop_date,
         }
     }
@@ -51,7 +51,7 @@ impl CDCOperatorSnapshotPayload {
         self.table_names.clone()
     }
 
-    pub fn start_date(&self) -> String {
+    pub fn start_date(&self) -> Option<String> {
         self.start_date.clone()
     }
 
