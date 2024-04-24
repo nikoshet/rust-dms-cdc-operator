@@ -140,6 +140,14 @@ impl PostgresOperator for PostgresOperatorImpl {
     ) -> Result<()> {
         let pg_pool = self.db_client.clone();
 
+        let mut df = df.clone();
+
+        // Drop the columns added by DMS
+        _ = df.drop_in_place("Op").expect("Failed to drop 'Op' column");
+        _ = df
+            .drop_in_place("_dms_ingestion_timestamp")
+            .expect("Failed to drop '_dms_ingestion_timestamp' column");
+
         let column_names = df.get_column_names();
         let fields = column_names.join(", ");
 
@@ -207,19 +215,32 @@ impl PostgresOperator for PostgresOperatorImpl {
         database_name: &str,
         schema_name: &str,
         table_name: &str,
-        primary_key: &str,
+        primary_keys: &str,
     ) -> Result<()> {
         let pg_pool = self.db_client.clone();
 
         let mut row_values = Vec::new();
         let mut deleted_row: bool;
 
-        let column_names = df.get_column_names();
+        let column_names = df
+            .get_column_names()
+            .into_iter()
+            .filter(|column| {
+                let is_not_op = *column != "Op";
+                let is_not_dms_ingestion_timestamp = *column != "_dms_ingestion_timestamp";
+                is_not_op && is_not_dms_ingestion_timestamp
+            })
+            .collect::<Vec<_>>();
         let fields = column_names.join(", ");
 
         for row in 0..df.height() {
             row_values.clear();
             deleted_row = false;
+
+            let pk_vector = primary_keys
+                .split(',')
+                .map(|key| df.column(key).unwrap().get(row).unwrap().to_string())
+                .collect::<Vec<String>>();
 
             for column in df.get_columns() {
                 // Operation: Delete
@@ -236,18 +257,14 @@ impl PostgresOperator for PostgresOperatorImpl {
                     continue;
                 }
 
-                let pk = primary_key
-                    .split(',')
-                    .map(|key| df.column(key).unwrap().get(row).unwrap().to_string())
-                    .collect::<Vec<String>>();
-
                 let query = DeleteRows(
                     schema_name.to_string(),
                     table_name.to_string(),
-                    primary_key.to_string(),
-                    pk.as_slice().join(","),
+                    primary_keys.to_string(),
+                    pk_vector.as_slice().join(","),
                 );
 
+                debug!("Query: {}", query);
                 sqlx::query(&query.to_string().replace('"', "'"))
                     .execute(&pg_pool)
                     .await
@@ -262,42 +279,45 @@ impl PostgresOperator for PostgresOperatorImpl {
                 continue;
             }
 
+            // Operation: Update
+            let is_update_op = row_values.first().unwrap().to_string().contains('U');
+
             debug!("Row values: {:?}", row_values);
-            let values = row_values
+
+            // Remove the Op and _dms_ingestion_timestamp column from the row values
+            let row_values = row_values.iter().skip(2).collect::<Vec<_>>();
+            let values_of_row = row_values
                 .iter()
                 .map(|v| RowStruct::new(v).displayed())
                 .collect::<Vec<_>>()
                 .join(", ");
 
-            // Operation: Update
-            let is_update_op = row_values.first().unwrap().to_string().contains('U');
-
             let on_conflict_strategy = if !is_update_op {
                 String::from("")
             } else {
-                let set_values = df
-                    .schema()
-                    .iter_fields()
+                let column_names = column_names
+                    .clone()
+                    .into_iter()
                     .enumerate()
-                    .filter(|(_, column)| !primary_key.contains(&column.name().to_string()))
                     .map(|(index, column)| {
                         format!(
                             "{} = {}",
-                            column.name(),
+                            column,
                             RowStruct::new(row_values.get(index).unwrap()).displayed()
                         )
                     })
                     .collect::<Vec<_>>();
 
                 // Construct the query, on Conflict, update the row
-                let strategy = format!(" ON CONFLICT ({}) DO UPDATE SET ", primary_key);
-                let concatenated_values = set_values.join(", ");
+                let strategy = format!(" ON CONFLICT ({}) DO UPDATE SET ", primary_keys);
+                let concatenated_values = column_names.join(", ");
 
                 format!("{strategy} {concatenated_values}")
             };
 
-            let query =
-                format!("INSERT INTO {schema_name}.{table_name} ({fields}) VALUES ({values})");
+            let query = format!(
+                "INSERT INTO {schema_name}.{table_name} ({fields}) VALUES ({values_of_row})"
+            );
             let query = format!("{query}{on_conflict_strategy}");
 
             debug!("Query: {}", query);
@@ -306,25 +326,6 @@ impl PostgresOperator for PostgresOperatorImpl {
                 .await
                 .expect("Failed to upsert data into table");
         }
-
-        Ok(())
-    }
-
-    async fn drop_dms_columns(
-        &self,
-        schema_name: &str,
-        table_name: &str,
-    ) -> Result<(), sqlx::Error> {
-        let pg_pool = self.db_client.clone();
-
-        // Prepare the query to drop the columns added by DMS
-        let query = DropDmsColumns(schema_name.to_string(), table_name.to_string());
-
-        // Drop the columns added by DMS
-        sqlx::query(&query.to_string())
-            .execute(&pg_pool)
-            .await
-            .expect("Failed to drop columns added by DMS");
 
         Ok(())
     }

@@ -177,15 +177,6 @@ impl CDCOperator {
                 }
             }
 
-            // Drop the columns added by DMS
-            info!("{}", "Dropping columns added by DMS".bold().green());
-            let _ = target_postgres_operator
-                .drop_dms_columns(
-                    cdc_operator_snapshot_payload.schema_name.as_str(),
-                    table_name,
-                )
-                .await;
-
             let elapsed = start.elapsed();
             info!(
                 "{}",

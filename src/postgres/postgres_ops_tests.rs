@@ -107,21 +107,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_drop_dms_columns() {
-        let mut postgres_operator = MockPostgresOperator::new();
-        postgres_operator
-            .expect_drop_dms_columns()
-            .times(1)
-            .with(eq("schema"), eq("table"))
-            .returning(|_, _| Ok(()));
-
-        postgres_operator
-            .drop_dms_columns("schema", "table")
-            .await
-            .unwrap();
-    }
-
-    #[tokio::test]
     async fn test_close_connection_pool() {
         let mut postgres_operator = MockPostgresOperator::new();
         postgres_operator

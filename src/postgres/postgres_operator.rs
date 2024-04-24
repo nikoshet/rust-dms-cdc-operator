@@ -112,22 +112,6 @@ pub trait PostgresOperator {
         primary_key: &str,
     ) -> Result<()>;
 
-    /// Drop the columns added by DMS.
-    ///
-    /// # Arguments
-    ///
-    /// * `schema_name` - The name of the schema.
-    /// * `table_name` - The name of the table.
-    ///
-    /// # Returns
-    ///
-    /// A Result indicating success or failure.
-    async fn drop_dms_columns(
-        &self,
-        schema_name: &str,
-        table_name: &str,
-    ) -> Result<(), sqlx::Error>;
-
     /// Close the connection pool.
     ///
     /// # Returns
