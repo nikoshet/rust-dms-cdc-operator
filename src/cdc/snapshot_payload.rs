@@ -61,4 +61,8 @@ impl CDCOperatorSnapshotPayload {
     pub fn stop_date(&self) -> Option<String> {
         self.stop_date.clone()
     }
+
+    pub fn only_datadiff(&self) -> bool {
+        self.only_datadiff
+    }
 }

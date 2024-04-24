@@ -33,172 +33,171 @@ impl CDCOperator {
             .create_schema(cdc_operator_snapshot_payload.schema_name().as_str())
             .await;
 
-        // Check if only_datadiff is true
-        if !cdc_operator_snapshot_payload.only_datadiff {
-            info!("{}", "Starting snapshotting...".bold().blue());
+        if cdc_operator_snapshot_payload.only_datadiff() {
+            info!("Skipping snapshotting as only_datadiff is needed");
+            return;
+        }
 
-            for table_name in &cdc_operator_snapshot_payload.table_names() {
-                let start = Instant::now();
-                info!(
-                    "{}",
-                    format!("Running for table: {}", table_name)
-                        .bold()
-                        .magenta()
-                );
+        info!("{}", "Starting snapshotting...".bold().blue());
 
-                // Get the table columns
-                info!("{}", "Getting table columns".bold().green());
-                let source_table_columns: indexmap::IndexMap<String, String> =
-                    source_postgres_operator
-                        .get_table_columns(
-                            cdc_operator_snapshot_payload.schema_name().as_str(),
+        for table_name in &cdc_operator_snapshot_payload.table_names() {
+            let start = Instant::now();
+            info!(
+                "{}",
+                format!("Running for table: {}", table_name)
+                    .bold()
+                    .magenta()
+            );
+
+            // Get the table columns
+            info!("{}", "Getting table columns".bold().green());
+            let source_table_columns: indexmap::IndexMap<String, String> = source_postgres_operator
+                .get_table_columns(
+                    cdc_operator_snapshot_payload.schema_name().as_str(),
+                    table_name,
+                )
+                .await
+                .unwrap();
+            info!(
+                "Number of columns: {}, Columns: {:?}",
+                source_table_columns.len(),
+                source_table_columns
+            );
+
+            // Get the primary key for the table
+            info!("{}", "Getting primary key".bold().green());
+            let primary_key_list = source_postgres_operator
+                .get_primary_key(
+                    table_name,
+                    cdc_operator_snapshot_payload.schema_name().as_str(),
+                )
+                .await
+                .unwrap();
+            info!("Primary key(s): {:?}", primary_key_list);
+
+            // Create the table in the target database
+            info!("{}", "Creating table in the target DB".bold().green());
+            let _ = target_postgres_operator
+                .create_table(
+                    &source_table_columns,
+                    primary_key_list.clone(),
+                    cdc_operator_snapshot_payload.schema_name().as_str(),
+                    table_name,
+                )
+                .await;
+
+            // Get the list of Parquet files from S3
+            info!("{}", "Getting list of Parquet files from S3".bold().green());
+            let parquet_files = s3_operator
+                .get_list_of_parquet_files_from_s3(
+                    cdc_operator_snapshot_payload.bucket_name().as_str(),
+                    cdc_operator_snapshot_payload.key().as_str(),
+                    cdc_operator_snapshot_payload.database_name().as_str(),
+                    cdc_operator_snapshot_payload.schema_name().as_str(),
+                    table_name,
+                    cdc_operator_snapshot_payload.start_date().as_str(),
+                    cdc_operator_snapshot_payload
+                        .stop_date()
+                        .map(|s| s.to_string()),
+                )
+                .await;
+
+            // Read the Parquet files from S3
+            info!("{}", "Reading Parquet files from S3".bold().green());
+
+            for file in &parquet_files.unwrap() {
+                let create_dataframe_payload = CreateDataframePayload {
+                    bucket_name: cdc_operator_snapshot_payload.bucket_name(),
+                    key: file.to_string(),
+                    database_name: cdc_operator_snapshot_payload.database_name(),
+                    schema_name: cdc_operator_snapshot_payload.schema_name(),
+                    table_name: table_name.clone(),
+                };
+
+                let current_df = dataframe_operator
+                    .create_dataframe_from_parquet_file(create_dataframe_payload.clone())
+                    .await
+                    .map_err(|e| {
+                        panic!("Error reading Parquet file: {:?}", e);
+                    })
+                    .unwrap();
+
+                let is_load_file = file
+                    .split('/')
+                    .collect::<Vec<&str>>()
+                    .last()
+                    .unwrap()
+                    .contains("LOAD");
+
+                if is_load_file {
+                    info!("Processing LOAD file: {:?}", file);
+                    // Check if the schema of the table is the same as the schema of the Parquet file
+                    // in case of altered column names or dropped columns
+                    let df_column_fields = current_df.get_columns();
+                    let has_schema_diff = df_column_fields
+                        .iter()
+                        .filter(|field| {
+                            field.name() != "Op" && field.name() != "_dms_ingestion_timestamp"
+                        })
+                        .any(|field| !source_table_columns.contains_key(field.name()));
+
+                    if has_schema_diff {
+                        panic!("Schema of table is not the same as the schema of the Parquet file");
+                    }
+
+                    target_postgres_operator
+                        .insert_dataframe_in_target_db(
+                            current_df,
+                            &create_dataframe_payload.database_name,
+                            &create_dataframe_payload.schema_name,
                             table_name,
                         )
                         .await
-                        .unwrap();
-                info!(
-                    "Number of columns: {}, Columns: {:?}",
-                    source_table_columns.len(),
-                    source_table_columns
-                );
-
-                // Get the primary key for the table
-                info!("{}", "Getting primary key".bold().green());
-                let primary_key_list = source_postgres_operator
-                    .get_primary_key(
-                        table_name,
-                        cdc_operator_snapshot_payload.schema_name().as_str(),
-                    )
-                    .await
-                    .unwrap();
-                info!("Primary key(s): {:?}", primary_key_list);
-
-                // Create the table in the target database
-                info!("{}", "Creating table in the target DB".bold().green());
-                let _ = target_postgres_operator
-                    .create_table(
-                        &source_table_columns,
-                        primary_key_list.clone(),
-                        cdc_operator_snapshot_payload.schema_name().as_str(),
-                        table_name,
-                    )
-                    .await;
-
-                // Get the list of Parquet files from S3
-                info!("{}", "Getting list of Parquet files from S3".bold().green());
-                let parquet_files = s3_operator
-                    .get_list_of_parquet_files_from_s3(
-                        cdc_operator_snapshot_payload.bucket_name().as_str(),
-                        cdc_operator_snapshot_payload.key().as_str(),
-                        cdc_operator_snapshot_payload.database_name().as_str(),
-                        cdc_operator_snapshot_payload.schema_name().as_str(),
-                        table_name,
-                        cdc_operator_snapshot_payload.start_date().as_str(),
-                        cdc_operator_snapshot_payload
-                            .stop_date()
-                            .map(|s| s.to_string()),
-                    )
-                    .await;
-
-                // Read the Parquet files from S3
-                info!("{}", "Reading Parquet files from S3".bold().green());
-
-                for file in &parquet_files.unwrap() {
-                    let create_dataframe_payload = CreateDataframePayload {
-                        bucket_name: cdc_operator_snapshot_payload.bucket_name(),
-                        key: file.to_string(),
-                        database_name: cdc_operator_snapshot_payload.database_name(),
-                        schema_name: cdc_operator_snapshot_payload.schema_name(),
-                        table_name: table_name.clone(),
-                    };
-
-                    let current_df = dataframe_operator
-                        .create_dataframe_from_parquet_file(create_dataframe_payload.clone())
-                        .await
-                        .map_err(|e| {
-                            panic!("Error reading Parquet file: {:?}", e);
+                        .unwrap_or_else(|_| {
+                            panic!("Failed to insert LOAD file {:?} into table", file)
                         })
-                        .unwrap();
+                } else {
+                    info!("Processing CDC file: {:?}", file);
+                    let primary_keys = primary_key_list.clone().as_slice().join(",");
 
-                    let is_load_file = file
-                        .split('/')
-                        .collect::<Vec<&str>>()
-                        .last()
-                        .unwrap()
-                        .contains("LOAD");
-
-                    if is_load_file {
-                        info!("Processing LOAD file: {:?}", file);
-                        // Check if the schema of the table is the same as the schema of the Parquet file
-                        // in case of altered column names or dropped columns
-                        let df_column_fields = current_df.get_columns();
-                        let has_schema_diff = df_column_fields
-                            .iter()
-                            .filter(|field| {
-                                field.name() != "Op" && field.name() != "_dms_ingestion_timestamp"
-                            })
-                            .any(|field| !source_table_columns.contains_key(field.name()));
-
-                        if has_schema_diff {
-                            panic!(
-                                "Schema of table is not the same as the schema of the Parquet file"
-                            );
-                        }
-
-                        target_postgres_operator
-                            .insert_dataframe_in_target_db(
-                                current_df,
-                                &create_dataframe_payload.database_name,
-                                &create_dataframe_payload.schema_name,
-                                table_name,
-                            )
-                            .await
-                            .unwrap_or_else(|_| {
-                                panic!("Failed to insert LOAD file {:?} into table", file)
-                            })
-                    } else {
-                        info!("Processing CDC file: {:?}", file);
-                        let primary_keys = primary_key_list.clone().as_slice().join(",");
-
-                        target_postgres_operator
-                            .upsert_dataframe_in_target_db(
-                                current_df,
-                                &create_dataframe_payload.database_name,
-                                &create_dataframe_payload.schema_name,
-                                table_name,
-                                &primary_keys,
-                            )
-                            .await
-                            .unwrap_or_else(|_| {
-                                panic!("Failed to upsert CDC file {:?} into table", file)
-                            })
-                    }
+                    target_postgres_operator
+                        .upsert_dataframe_in_target_db(
+                            current_df,
+                            &create_dataframe_payload.database_name,
+                            &create_dataframe_payload.schema_name,
+                            table_name,
+                            &primary_keys,
+                        )
+                        .await
+                        .unwrap_or_else(|_| {
+                            panic!("Failed to upsert CDC file {:?} into table", file)
+                        })
                 }
-
-                // Drop the columns added by DMS
-                info!("{}", "Dropping columns added by DMS".bold().green());
-                let _ = target_postgres_operator
-                    .drop_dms_columns(
-                        cdc_operator_snapshot_payload.schema_name.as_str(),
-                        table_name,
-                    )
-                    .await;
-
-                let elapsed = start.elapsed();
-                info!(
-                    "{}",
-                    format!(
-                        "Snapshot completed for table {} in: {}ms",
-                        table_name,
-                        elapsed.as_millis()
-                    )
-                    .yellow()
-                    .bold(),
-                );
             }
 
-            info!("{}", "Snapshotting completed...".bold().blue());
+            // Drop the columns added by DMS
+            info!("{}", "Dropping columns added by DMS".bold().green());
+            let _ = target_postgres_operator
+                .drop_dms_columns(
+                    cdc_operator_snapshot_payload.schema_name.as_str(),
+                    table_name,
+                )
+                .await;
+
+            let elapsed = start.elapsed();
+            info!(
+                "{}",
+                format!(
+                    "Snapshot completed for table {} in: {}ms",
+                    table_name,
+                    elapsed.as_millis()
+                )
+                .yellow()
+                .bold(),
+            );
         }
+
+        info!("{}", "Snapshotting completed...".bold().blue());
     }
 
     /// Validates the data between S3 and a target database.
