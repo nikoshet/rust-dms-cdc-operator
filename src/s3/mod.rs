@@ -1,4 +1,4 @@
-pub mod s3_ops;
+pub mod s3_operator;
 
 #[cfg(test)]
-mod s3_ops_tests;
+mod s3_operator_tests;

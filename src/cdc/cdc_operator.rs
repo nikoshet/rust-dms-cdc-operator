@@ -9,7 +9,7 @@ use super::snapshot_payload::CDCOperatorSnapshotPayload;
 use super::validate_payload::CDCOperatorValidatePayload;
 use crate::dataframe::dataframe_ops::{CreateDataframePayload, DataframeOperator};
 use crate::postgres::postgres_operator::PostgresOperator;
-use crate::s3::s3_ops::S3Operator;
+use crate::s3::s3_operator::{LoadParquetFilesPayload, S3Operator};
 
 const EMPTY_STRING_VEC: Vec<String> = Vec::new();
 
@@ -30,7 +30,8 @@ impl CDCOperator {
             .create_schema(cdc_operator_snapshot_payload.schema_name().as_str())
             .await;
 
-        info!("{}", "Starting snapshotting...".bold().purple());
+        // Check if only_datadiff is true
+        info!("{}", "Starting snapshotting...".bold().blue());
 
         for table_name in &cdc_operator_snapshot_payload.table_names() {
             let start = Instant::now();
@@ -80,18 +81,27 @@ impl CDCOperator {
 
             // Get the list of Parquet files from S3
             info!("{}", "Getting list of Parquet files from S3".bold().green());
-            let parquet_files = s3_operator
-                .get_list_of_parquet_files_from_s3(
-                    cdc_operator_snapshot_payload.bucket_name().as_str(),
-                    cdc_operator_snapshot_payload.key().as_str(),
-                    cdc_operator_snapshot_payload.database_name().as_str(),
-                    cdc_operator_snapshot_payload.schema_name().as_str(),
-                    table_name,
-                    cdc_operator_snapshot_payload.start_date().as_str(),
-                    cdc_operator_snapshot_payload
+
+            let load_parquet_files_payload = if let Some(start_date) =
+                cdc_operator_snapshot_payload.start_date()
+            {
+                LoadParquetFilesPayload::DateAware {
+                    bucket_name: cdc_operator_snapshot_payload.bucket_name(),
+                    s3_prefix: cdc_operator_snapshot_payload.key(),
+                    database_name: cdc_operator_snapshot_payload.database_name(),
+                    schema_name: cdc_operator_snapshot_payload.schema_name(),
+                    table_name: table_name.to_string(),
+                    start_date,
+                    stop_date: cdc_operator_snapshot_payload
                         .stop_date()
                         .map(|s| s.to_string()),
-                )
+                }
+            } else {
+                LoadParquetFilesPayload::AbsolutePath(cdc_operator_snapshot_payload.key().clone())
+            };
+
+            let parquet_files = s3_operator
+                .get_list_of_parquet_files_from_s3(load_parquet_files_payload)
                 .await;
 
             // Read the Parquet files from S3

@@ -8,6 +8,19 @@ use log::{debug, info};
 #[cfg(test)]
 use mockall::automock;
 
+pub enum LoadParquetFilesPayload {
+    DateAware {
+        bucket_name: String,
+        s3_prefix: String,
+        database_name: String,
+        schema_name: String,
+        table_name: String,
+        start_date: String,
+        stop_date: Option<String>,
+    },
+    AbsolutePath(String),
+}
+
 #[cfg_attr(test, automock)]
 #[async_trait]
 pub trait S3Operator {
@@ -29,13 +42,7 @@ pub trait S3Operator {
     #[allow(clippy::too_many_arguments)]
     async fn get_list_of_parquet_files_from_s3(
         &self,
-        bucket_name: &str,
-        s3_prefix: &str,
-        database_name: &str,
-        database_schema: &str,
-        table_name: &str,
-        start_date: &str,
-        stop_date: Option<String>,
+        load_parquet_files_payload: LoadParquetFilesPayload,
     ) -> Result<Vec<String>>;
 
     /// Gets the list of files from S3 based on the date.
@@ -53,7 +60,7 @@ pub trait S3Operator {
     /// A list of files.
     async fn get_files_from_s3_based_on_date(
         &self,
-        bucket_name: &str,
+        bucket_name: String,
         start_date_path: String,
         prefix_path: String,
         start_date: DateTime,
@@ -75,56 +82,68 @@ impl<'a> S3OperatorImpl<'a> {
 impl S3Operator for S3OperatorImpl<'_> {
     async fn get_list_of_parquet_files_from_s3(
         &self,
-        bucket_name: &str,
-        s3_prefix: &str,
-        database_name: &str,
-        database_schema: &str,
-        table_name: &str,
-        start_date: &str,
-        stop_date: Option<String>,
+        s3_parquet_file_load_key: LoadParquetFilesPayload,
     ) -> Result<Vec<String>> {
-        let prefix_path = format!(
-            "{}/{}/{}/{}",
-            s3_prefix, database_name, database_schema, table_name
-        );
+        let parquet_files = match s3_parquet_file_load_key {
+            LoadParquetFilesPayload::DateAware {
+                bucket_name,
+                s3_prefix,
+                database_name,
+                schema_name,
+                table_name,
+                start_date,
+                stop_date,
+            } => {
+                let iter_start_date =
+                    NaiveDate::parse_from_str(start_date.as_str(), "%Y-%m-%dT%H:%M:%SZ")?;
+                let year = iter_start_date.year();
+                let month = format!("{:02}", iter_start_date.month());
+                let day = format!("{:02}", iter_start_date.day());
+                let prefix_path = format!(
+                    "{}/{}/{}/{}",
+                    s3_prefix, database_name, schema_name, table_name
+                );
+                let start_date_path = format!("{}/{}/{}/{}/", prefix_path, year, month, day);
 
-        let iter_start_date = NaiveDate::parse_from_str(start_date, "%Y-%m-%dT%H:%M:%SZ")?;
-        let year = iter_start_date.year();
-        let month = format!("{:02}", iter_start_date.month());
-        let day = format!("{:02}", iter_start_date.day());
-        let start_date_path = format!("{}/{}/{}/{}/", prefix_path, year, month, day);
+                let start_date =
+                    DateTime::from_str(start_date.as_str(), DateTimeFormat::DateTimeWithOffset)?;
+                let stop_date = if stop_date.is_none() {
+                    None
+                } else {
+                    Some(DateTime::from_str(
+                        &stop_date.unwrap(),
+                        DateTimeFormat::DateTimeWithOffset,
+                    )?)
+                };
 
-        let start_date = DateTime::from_str(start_date, DateTimeFormat::DateTimeWithOffset)?;
-        let stop_date = if stop_date.is_none() {
-            None
-        } else {
-            Some(DateTime::from_str(
-                &stop_date.unwrap(),
-                DateTimeFormat::DateTimeWithOffset,
-            )?)
+                let mut files_list: Vec<String>;
+                files_list = self
+                    .get_files_from_s3_based_on_date(
+                        bucket_name,
+                        start_date_path,
+                        format!("{}/", prefix_path),
+                        start_date,
+                        stop_date,
+                    )
+                    .await?;
+
+                // We want to process the LOAD files first in INSERT mode, so we rotate the list,
+                // Then, we will process the rest CDC files in UPSERT mode.
+                let load_files_count = files_list.iter().filter(|s| s.contains("LOAD")).count();
+                files_list.rotate_right(load_files_count);
+                files_list
+            }
+            LoadParquetFilesPayload::AbsolutePath(absolute_path) => {
+                vec![absolute_path]
+            }
         };
 
-        let mut files_list: Vec<String>;
-        files_list = Self::get_files_from_s3_based_on_date(
-            self,
-            bucket_name,
-            start_date_path,
-            format!("{}/", prefix_path),
-            start_date,
-            stop_date,
-        )
-        .await?;
-
-        // We want to process the LOAD files first in INSERT mode, so we rotate the list,
-        // Then, we will process the rest CDC files in UPSERT mode.
-        let load_files_count = files_list.iter().filter(|s| s.contains("LOAD")).count();
-        files_list.rotate_right(load_files_count);
-        Ok(files_list)
+        Ok(parquet_files)
     }
 
     async fn get_files_from_s3_based_on_date(
         &self,
-        bucket_name: &str,
+        bucket_name: String,
         start_date_path: String,
         prefix_path: String,
         start_date: DateTime,
@@ -137,7 +156,7 @@ impl S3Operator for S3OperatorImpl<'_> {
             let builder = self
                 .s3_client
                 .list_objects_v2()
-                .bucket(bucket_name)
+                .bucket(&bucket_name)
                 .start_after(&start_date_path)
                 .prefix(&prefix_path);
 

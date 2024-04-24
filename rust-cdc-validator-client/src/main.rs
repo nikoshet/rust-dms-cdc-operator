@@ -17,7 +17,7 @@ use rust_cdc_validator::{
         postgres_config::PostgresConfig, postgres_operator::PostgresOperator,
         postgres_ops::PostgresOperatorImpl,
     },
-    s3::s3_ops::S3OperatorImpl,
+    s3::s3_operator::S3OperatorImpl,
 };
 use tracing::info;
 
@@ -92,7 +92,7 @@ enum Commands {
 }
 
 #[cfg(feature = "with-clap")]
-fn main_clap() -> Result<ValidatorPayload> {
+fn main_clap() -> Result<CDCOperatorPayload> {
     let cli = Cli::parse();
     match cli.command {
         Commands::Validate {
@@ -110,7 +110,7 @@ fn main_clap() -> Result<ValidatorPayload> {
             only_datadiff,
             only_snapshot,
         } => {
-            let payload = ValidatorPayload::new(
+            let payload = CDCOperatorPayload::new(
                 bucket_name,
                 s3_prefix,
                 source_postgres_url,
@@ -275,7 +275,7 @@ async fn main() -> Result<()> {
         cdc_operator_payload.database_name(),
         cdc_operator_payload.schema_name(),
         cdc_operator_payload.table_names().to_vec(),
-        cdc_operator_payload.start_date(),
+        Some(cdc_operator_payload.start_date().to_string()),
         cdc_operator_payload.stop_date().map(|x| x.to_string()),
     );
 
