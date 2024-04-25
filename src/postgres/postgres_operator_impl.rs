@@ -8,13 +8,17 @@ use polars_core::export::num::ToPrimitive;
 use sqlx::{Pool, Postgres, Row};
 use std::fmt::Display;
 
-use tracing::instrument;
+use tracing::{info, instrument};
 use TableQuery::*;
 
 pub(crate) use super::postgres_operator::PostgresOperator;
+use super::{
+    postgres_operator::{InsertDataframePayload, UpsertDataframePayload},
+    table_query::TableQuery,
+};
+
 use crate::postgres::postgres_row_struct::RowStruct;
 use crate::postgres::table_mode::TableMode;
-use crate::postgres::table_query::TableQuery;
 
 /// Represents the data type of a column in a table.
 enum ColumnDataType {
@@ -180,9 +184,7 @@ impl PostgresOperator for PostgresOperatorImpl {
     async fn insert_dataframe_in_target_db(
         &self,
         df: DataFrame,
-        database_name: &str,
-        schema_name: &str,
-        table_name: &str,
+        payload: InsertDataframePayload,
     ) -> Result<()> {
         let pg_pool = self.db_client.clone();
 
@@ -198,6 +200,8 @@ impl PostgresOperator for PostgresOperatorImpl {
         let fields = column_names.join(", ");
 
         let insert_rows_number = 100_000;
+
+        info!("Insert rows number: {insert_rows_number}");
 
         let mut offset = 0;
         // Insert rows in chunks to avoid the bulk insert issue of EOF
@@ -243,8 +247,11 @@ impl PostgresOperator for PostgresOperatorImpl {
                 .collect::<Vec<_>>()
                 .join(", ");
 
-            let query =
-                format!("INSERT INTO {schema_name}.{table_name} ({fields}) VALUES {values}");
+            let query = format!(
+                "INSERT INTO {schema_name}.{table_name} ({fields}) VALUES {values}",
+                schema_name = payload.schema_name,
+                table_name = payload.table_name,
+            );
 
             sqlx::query(&query)
                 .execute(&pg_pool)
@@ -263,10 +270,7 @@ impl PostgresOperator for PostgresOperatorImpl {
     async fn upsert_dataframe_in_target_db(
         &self,
         df: DataFrame,
-        database_name: &str,
-        schema_name: &str,
-        table_name: &str,
-        primary_keys: &str,
+        payload: UpsertDataframePayload,
     ) -> Result<()> {
         let pg_pool = self.db_client.clone();
 
@@ -288,7 +292,8 @@ impl PostgresOperator for PostgresOperatorImpl {
             row_values.clear();
             deleted_row = false;
 
-            let pk_vector = primary_keys
+            let pk_vector = payload
+                .primary_key
                 .split(',')
                 .map(|key| df.column(key).unwrap().get(row).unwrap().to_string())
                 .collect::<Vec<String>>();
@@ -309,9 +314,9 @@ impl PostgresOperator for PostgresOperatorImpl {
                 }
 
                 let query = DeleteRows(
-                    schema_name.to_string(),
-                    table_name.to_string(),
-                    primary_keys.to_string(),
+                    payload.schema_name.clone(),
+                    payload.table_name.clone(),
+                    payload.primary_key.clone(),
                     pk_vector.as_slice().join(","),
                 );
 
@@ -360,14 +365,16 @@ impl PostgresOperator for PostgresOperatorImpl {
                     .collect::<Vec<_>>();
 
                 // Construct the query, on Conflict, update the row
-                let strategy = format!(" ON CONFLICT ({}) DO UPDATE SET ", primary_keys);
+                let strategy = format!(" ON CONFLICT ({}) DO UPDATE SET ", payload.primary_key);
                 let concatenated_values = column_names.join(", ");
 
                 format!("{strategy} {concatenated_values}")
             };
 
             let query = format!(
-                "INSERT INTO {schema_name}.{table_name} ({fields}) VALUES ({values_of_row})"
+                "INSERT INTO {schema_name}.{table_name} ({fields}) VALUES ({values_of_row})",
+                schema_name = payload.schema_name,
+                table_name = payload.table_name,
             );
             let query = format!("{query}{on_conflict_strategy}");
 

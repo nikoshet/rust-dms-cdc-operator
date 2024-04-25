@@ -15,7 +15,7 @@ use rust_cdc_validator::{
     dataframe::dataframe_ops::DataframeOperatorImpl,
     postgres::{
         postgres_config::PostgresConfig, postgres_operator::PostgresOperator,
-        postgres_ops::PostgresOperatorImpl,
+        postgres_operator_impl::PostgresOperatorImpl,
     },
     s3::s3_operator::S3OperatorImpl,
 };

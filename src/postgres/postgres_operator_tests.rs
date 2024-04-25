@@ -4,8 +4,8 @@ mod tests {
     use mockall::predicate::*;
     use polars::prelude::*;
 
-    use crate::postgres::{
-        postgres_operator::MockPostgresOperator, postgres_ops::PostgresOperator,
+    use crate::postgres::postgres_operator::{
+        InsertDataframePayload, MockPostgresOperator, PostgresOperator, UpsertDataframePayload,
     };
 
     #[tokio::test]
@@ -76,11 +76,17 @@ mod tests {
         postgres_operator
             .expect_insert_dataframe_in_target_db()
             .times(1)
-            .returning(|_, _, _, _| Ok(()));
+            .returning(|_, _| Ok(()));
 
         let df = DataFrame::new(vec![Series::new("column1", &[1, 2, 3])]).unwrap();
+        let payload = InsertDataframePayload {
+            database_name: "database".to_string(),
+            schema_name: "schema".to_string(),
+            table_name: "table".to_string(),
+        };
+
         postgres_operator
-            .insert_dataframe_in_target_db(df, "database", "schema", "table")
+            .insert_dataframe_in_target_db(df, payload)
             .await
             .unwrap();
     }
@@ -91,17 +97,17 @@ mod tests {
         postgres_operator
             .expect_upsert_dataframe_in_target_db()
             .times(1)
-            .returning(|_, _, _, _, _| Ok(()));
+            .returning(|_, _| Ok(()));
 
         let df = DataFrame::new(vec![Series::new("column1", &[1, 2, 3])]).unwrap();
+        let payload = UpsertDataframePayload {
+            database_name: "database".to_string(),
+            schema_name: "schema".to_string(),
+            table_name: "table".to_string(),
+            primary_key: "primary_key".to_string(),
+        };
         postgres_operator
-            .upsert_dataframe_in_target_db(
-                df,
-                "database",
-                "schema",
-                "table",
-                &vec!["primary_key".to_string()].as_slice().join(","),
-            )
+            .upsert_dataframe_in_target_db(df, payload)
             .await
             .unwrap();
     }

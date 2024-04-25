@@ -6,8 +6,11 @@ use std::time::Instant;
 
 use super::snapshot_payload::CDCOperatorSnapshotPayload;
 use super::validate_payload::CDCOperatorValidatePayload;
+
 use crate::dataframe::dataframe_ops::{CreateDataframePayload, DataframeOperator};
-use crate::postgres::postgres_operator::PostgresOperator;
+use crate::postgres::postgres_operator::{
+    InsertDataframePayload, PostgresOperator, UpsertDataframePayload,
+};
 use crate::s3::s3_operator::{LoadParquetFilesPayload, S3Operator};
 
 /// Represents a CDC Operator that validates the data between S3 and a target database.
@@ -155,13 +158,14 @@ impl CDCOperator {
                         panic!("Schema of table is not the same as the schema of the Parquet file");
                     }
 
+                    let insert_dataframe_payload = InsertDataframePayload {
+                        database_name: cdc_operator_snapshot_payload.database_name(),
+                        schema_name: cdc_operator_snapshot_payload.schema_name(),
+                        table_name: table_name.clone(),
+                    };
+
                     target_postgres_operator
-                        .insert_dataframe_in_target_db(
-                            current_df,
-                            &create_dataframe_payload.database_name,
-                            &create_dataframe_payload.schema_name,
-                            table_name,
-                        )
+                        .insert_dataframe_in_target_db(current_df, insert_dataframe_payload)
                         .await
                         .unwrap_or_else(|_| {
                             panic!("Failed to insert LOAD file {:?} into table", file)
@@ -170,14 +174,15 @@ impl CDCOperator {
                     info!("Processing CDC file: {:?}", file);
                     let primary_keys = primary_key_list.clone().as_slice().join(",");
 
+                    let upsert_dataframe_payload = UpsertDataframePayload {
+                        database_name: cdc_operator_snapshot_payload.database_name(),
+                        schema_name: cdc_operator_snapshot_payload.schema_name(),
+                        table_name: table_name.clone(),
+                        primary_key: primary_keys.clone(),
+                    };
+
                     target_postgres_operator
-                        .upsert_dataframe_in_target_db(
-                            current_df,
-                            &create_dataframe_payload.database_name,
-                            &create_dataframe_payload.schema_name,
-                            table_name,
-                            &primary_keys,
-                        )
+                        .upsert_dataframe_in_target_db(current_df, upsert_dataframe_payload)
                         .await
                         .unwrap_or_else(|_| {
                             panic!("Failed to upsert CDC file {:?} into table", file)
@@ -233,8 +238,6 @@ impl CDCOperator {
             panic!("Failed to run pgdatadiff: {:?}", diff_result.err().unwrap());
         }
 
-        info!("{}", "Pgdatadiff completed...".bold().blue());
-
-        info!("{}", "Validator finished...".bold().purple());
+        info!("{}", "Pgdatadiff completed!".bold().blue());
     }
 }

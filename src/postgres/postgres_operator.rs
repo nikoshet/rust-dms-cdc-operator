@@ -5,6 +5,21 @@ use async_trait::async_trait;
 #[cfg(test)]
 use mockall::automock;
 
+#[derive(Debug)]
+pub struct InsertDataframePayload {
+    pub database_name: String,
+    pub schema_name: String,
+    pub table_name: String,
+}
+
+#[derive(Debug)]
+pub struct UpsertDataframePayload {
+    pub database_name: String,
+    pub schema_name: String,
+    pub table_name: String,
+    pub primary_key: String,
+}
+
 #[cfg_attr(test, automock)]
 #[async_trait]
 pub trait PostgresOperator {
@@ -106,9 +121,7 @@ pub trait PostgresOperator {
     async fn insert_dataframe_in_target_db(
         &self,
         df: polars::frame::DataFrame,
-        database_name: &str,
-        schema_name: &str,
-        table_name: &str,
+        payload: InsertDataframePayload,
     ) -> Result<()>;
 
     /// Upsert a DataFrame into the target database.
@@ -127,10 +140,7 @@ pub trait PostgresOperator {
     async fn upsert_dataframe_in_target_db(
         &self,
         df: polars::frame::DataFrame,
-        database_name: &str,
-        schema_name: &str,
-        table_name: &str,
-        primary_key: &str,
+        payload: UpsertDataframePayload,
     ) -> Result<()>;
 
     /// Close the connection pool.
