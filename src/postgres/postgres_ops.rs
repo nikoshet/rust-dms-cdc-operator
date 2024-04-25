@@ -152,14 +152,19 @@ impl PostgresOperator for PostgresOperatorImpl {
         let fields = column_names.join(", ");
 
         let insert_rows_number = 100_000;
-        let df_height = df
-            .height()
-            .to_i64()
-            .expect("Error while looping through the dataframe");
 
         let mut offset = 0;
         // Insert rows in chunks to avoid the bulk insert issue of EOF
-        while offset <= df_height {
+        while offset
+            <= df
+                .height()
+                .to_i64()
+                .expect("Error while looping through the dataframe")
+        {
+            debug!("Inserting rows in chunks");
+            debug!("Offset: {offset}");
+            debug!("Dataframe height: {df_height}", df_height = df.height());
+
             let df_slice = df.slice(offset, insert_rows_number);
             debug!(
                 "Current offset: {}, current df height: {}",
