@@ -130,7 +130,7 @@ impl PostgresOperator for PostgresOperatorImpl {
         Ok(())
     }
 
-    #[instrument(name = "Insert data into table", skip(self))]
+    #[instrument(name = "Insert data into table", skip(self, df))]
     async fn insert_dataframe_in_target_db(
         &self,
         df: DataFrame,
@@ -213,7 +213,7 @@ impl PostgresOperator for PostgresOperatorImpl {
         Ok(())
     }
 
-    #[instrument(name = "Upsert data into table", skip(self))]
+    #[instrument(name = "Upsert data into table", skip(self, df))]
     async fn upsert_dataframe_in_target_db(
         &self,
         df: DataFrame,
