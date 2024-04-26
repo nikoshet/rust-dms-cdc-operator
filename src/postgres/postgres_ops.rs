@@ -12,9 +12,9 @@ use tracing::instrument;
 use TableQuery::*;
 
 pub(crate) use super::postgres_operator::PostgresOperator;
-use super::table_query::TableQuery;
-
 use crate::postgres::postgres_row_struct::RowStruct;
+use crate::postgres::table_mode::TableMode;
+use crate::postgres::table_query::TableQuery;
 
 /// Represents the data type of a column in a table.
 enum ColumnDataType {
@@ -104,6 +104,52 @@ impl PostgresOperator for PostgresOperatorImpl {
             .expect("Failed to create schema");
 
         Ok(())
+    }
+
+    async fn get_tables_in_schema(
+        &self,
+        schema_name: &str,
+        included_tables: &[String],
+        excluded_tables: &[String],
+        table_mode: &TableMode,
+    ) -> Result<Vec<String>, sqlx::Error> {
+        let pg_pool = self.db_client.clone();
+
+        let subquery = match table_mode {
+            TableMode::IncludeTables => {
+                format!(
+                    "AND table_name IN ({})",
+                    included_tables
+                        .iter()
+                        .map(|table| format!("'{}'", table))
+                        .collect::<Vec<String>>()
+                        .join(", ")
+                )
+            }
+            TableMode::ExcludeTables => {
+                format!(
+                    "AND table_name NOT IN ({})",
+                    excluded_tables
+                        .iter()
+                        .map(|table| format!("'{}'", table))
+                        .collect::<Vec<String>>()
+                        .join(", ")
+                )
+            }
+            TableMode::AllTables => "".to_string(),
+        };
+
+        let query = FindTablesForSchema(schema_name.to_string(), subquery);
+        let rows = sqlx::query(&query.to_string())
+            .fetch_all(&pg_pool)
+            .await
+            .expect("Failed to fetch tables");
+
+        let tables = rows
+            .iter()
+            .map(|row| row.get("table_name"))
+            .collect::<Vec<String>>();
+        Ok(tables)
     }
 
     async fn create_table(

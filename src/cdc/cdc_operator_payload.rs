@@ -6,7 +6,8 @@ pub struct CDCOperatorPayload {
     source_postgres_url: String,
     target_postgres_url: String,
     database_schema: String,
-    table_names: Vec<String>,
+    included_tables: Vec<String>,
+    excluded_tables: Vec<String>,
     start_date: String,
     stop_date: Option<String>,
     chunk_size: i64,
@@ -26,7 +27,8 @@ impl CDCOperatorPayload {
     /// * `source_postgres_url` - The source Postgres URL.
     /// * `target_postgres_url` - The target Postgres URL.
     /// * `database_schema` - The schema of the database.
-    /// * `table_names` - The list of tables to include for validation.
+    /// * `included_tables` - The list of tables to include for validation.
+    /// * `excluded_tables` - The list of tables to exclude for validation.
     /// * `start_date` - Will be used to constract a key from which Amazon will start listing files after that key.
     /// * `stop_date` - Will be used to stop listing files after that date.
     /// * `chunk_size` - The chunk size for pgdatadiff validation.
@@ -45,7 +47,8 @@ impl CDCOperatorPayload {
         source_postgres_url: impl Into<String>,
         target_postgres_url: impl Into<String>,
         database_schema: impl Into<String>,
-        table_names: Vec<impl Into<String>>,
+        included_tables: Vec<impl Into<String>>,
+        excluded_tables: Vec<impl Into<String>>,
         start_date: impl Into<String>,
         stop_date: impl Into<Option<String>>,
         chunk_size: i64,
@@ -64,7 +67,8 @@ impl CDCOperatorPayload {
             source_postgres_url: source_postgres_url.into(),
             target_postgres_url: target_postgres_url.into(),
             database_schema: database_schema.into(),
-            table_names: table_names.into_iter().map(|t| t.into()).collect(),
+            included_tables: included_tables.into_iter().map(|t| t.into()).collect(),
+            excluded_tables: excluded_tables.into_iter().map(|t| t.into()).collect(),
             start_date: start_date.into(),
             stop_date: stop_date.into(),
             chunk_size,
@@ -103,8 +107,12 @@ impl CDCOperatorPayload {
         &self.database_schema
     }
 
-    pub fn table_names(&self) -> &[String] {
-        &self.table_names
+    pub fn included_tables(&self) -> &[String] {
+        &self.included_tables
+    }
+
+    pub fn excluded_tables(&self) -> &[String] {
+        &self.excluded_tables
     }
 
     pub fn start_date(&self) -> &str {
@@ -148,7 +156,8 @@ mod tests {
         let source_postgres_url = "postgres://postgres:postgres@localhost:5432/mydb";
         let target_postgres_url = "postgres://postgres:postgres@localhost:5432/mydb";
         let database_schema = "public";
-        let table_names = vec!["table1", "table2"];
+        let included_tables = vec!["table1", "table2"];
+        let excluded_tables = vec!["table3", "table4"];
         let start_date = "2021-01-01";
         let stop_date = Some("2021-01-02".to_string());
         let chunk_size = 1000;
@@ -163,7 +172,8 @@ mod tests {
             source_postgres_url,
             target_postgres_url,
             database_schema,
-            table_names,
+            included_tables,
+            excluded_tables,
             start_date,
             stop_date,
             chunk_size,

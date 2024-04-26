@@ -3,6 +3,7 @@ use std::fmt::Display;
 
 pub enum TableQuery {
     FindAllColumns(String, String),
+    FindTablesForSchema(String, String),
     DeleteRows(String, String, String, String),
     FindPrimaryKey(String, String),
     CreateSchema(String),
@@ -20,6 +21,16 @@ impl Display for TableQuery {
                     WHERE table_schema = '{}' 
                     AND table_name = '{}'",
                     schema, table
+                )
+            }
+            TableQuery::FindTablesForSchema(schema, subquery) => {
+                write!(
+                    f,
+                    r#"SELECT table_name
+                    FROM information_schema.tables
+                    WHERE table_schema = '{}' {}
+                    "#,
+                    schema, subquery
                 )
             }
             TableQuery::DeleteRows(schema, table, primary_key, primary_key_value) => {

@@ -1,7 +1,8 @@
 pub struct CDCOperatorValidatePayload {
     pub source_postgres_url: String,
     pub target_postgres_url: String,
-    pub table_names: Vec<String>,
+    pub included_tables: Vec<String>,
+    pub excluded_tables: Vec<String>,
     pub schema_name: String,
     pub chunk_size: i64,
     pub start_position: i64,
@@ -11,7 +12,8 @@ impl CDCOperatorValidatePayload {
     pub fn new(
         source_postgres_url: impl Into<String>,
         target_postgres_url: impl Into<String>,
-        table_names: Vec<impl Into<String>>,
+        included_tables: Vec<impl Into<String>>,
+        excluded_tables: Vec<impl Into<String>>,
         schema_name: impl Into<String>,
         chunk_size: i64,
         start_position: i64,
@@ -19,7 +21,8 @@ impl CDCOperatorValidatePayload {
         CDCOperatorValidatePayload {
             source_postgres_url: source_postgres_url.into(),
             target_postgres_url: target_postgres_url.into(),
-            table_names: table_names.into_iter().map(|x| x.into()).collect(),
+            included_tables: included_tables.into_iter().map(|t| t.into()).collect(),
+            excluded_tables: excluded_tables.into_iter().map(|t| t.into()).collect(),
             schema_name: schema_name.into(),
             chunk_size,
             start_position,
@@ -34,8 +37,12 @@ impl CDCOperatorValidatePayload {
         self.target_postgres_url.clone()
     }
 
-    pub fn table_names(&self) -> Vec<String> {
-        self.table_names.clone()
+    pub fn included_tables(&self) -> Vec<String> {
+        self.included_tables.clone()
+    }
+
+    pub fn excluded_tables(&self) -> Vec<String> {
+        self.excluded_tables.clone()
     }
 
     pub fn schema_name(&self) -> String {
