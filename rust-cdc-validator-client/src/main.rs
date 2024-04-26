@@ -52,9 +52,12 @@ enum Commands {
         /// Schema of database to validate against S3 files
         #[arg(long, required = false, default_value = "public")]
         database_schema: String,
-        /// List of table names to validate against S3 files
-        #[arg(long, value_delimiter = ',', num_args = 0.., required = true)]
-        table_names: Vec<String>,
+        /// List of tables to include for validatation against S3 files
+        #[arg(long, value_delimiter = ',', num_args = 0.., required = false, conflicts_with("excluded_tables"))]
+        included_tables: Vec<String>,
+        /// List of tables to exclude for validatation against S3 files
+        #[arg(long, value_delimiter = ',', num_args = 0.., required = false, conflicts_with("included_tables"))]
+        excluded_tables: Vec<String>,
         /// Start date to filter the Parquet files
         /// Example: 2024-02-14T10:00:00Z
         #[arg(long, required = true, default_value = "2024-02-14T10:00:00Z")]
@@ -101,7 +104,8 @@ fn main_clap() -> Result<CDCOperatorPayload> {
             source_postgres_url,
             target_postgres_url,
             database_schema,
-            table_names,
+            included_tables,
+            excluded_tables,
             start_date,
             stop_date,
             chunk_size,
@@ -116,7 +120,8 @@ fn main_clap() -> Result<CDCOperatorPayload> {
                 source_postgres_url,
                 target_postgres_url,
                 database_schema,
-                table_names,
+                included_tables,
+                excluded_tables,
                 start_date,
                 stop_date,
                 chunk_size,
@@ -158,10 +163,17 @@ fn main_inquire() -> Result<CDCOperatorPayload> {
         .with_help_message("Enter the schema of the database of the database")
         .prompt()?;
 
-    let table_names = Text::new("Tables to include")
+    let included_tables = Text::new("Tables to include")
         .with_default("table1 table2")
         .with_help_message(
-            "Enter the list of table names to validate against S3 files (comma separated)",
+            "Enter the list of table names to include for validatation against S3 files (comma separated)",
+        )
+        .prompt()?;
+
+    let excluded_tables = Text::new("Tables to exclude")
+        .with_default("table3 table4")
+        .with_help_message(
+            "Enter the list of table names to exclude for validatation against S3 files (comma separated)",
         )
         .prompt()?;
 
@@ -206,7 +218,8 @@ fn main_inquire() -> Result<CDCOperatorPayload> {
         source_postgres_url,
         target_postgres_url,
         database_schema,
-        table_names.split_whitespace().collect(),
+        included_tables.split_whitespace().collect(),
+        excluded_tables.split_whitespace().collect(),
         start_date,
         if stop_date.is_empty() {
             None
@@ -243,7 +256,6 @@ async fn main() -> Result<()> {
     let db_client = PostgresConfig::new(
         cdc_operator_payload.source_postgres_url(),
         cdc_operator_payload.database_name(),
-        cdc_operator_payload.table_names().to_vec().clone(),
         cdc_operator_payload.max_connections(),
     );
     let pg_pool = db_client.connect_to_postgres().await;
@@ -254,7 +266,6 @@ async fn main() -> Result<()> {
     let target_db_client: PostgresConfig = PostgresConfig::new(
         cdc_operator_payload.target_postgres_url(),
         "public",
-        cdc_operator_payload.table_names().to_vec().clone(),
         cdc_operator_payload.max_connections(),
     );
     let target_pg_pool = target_db_client.connect_to_postgres().await;
@@ -274,7 +285,8 @@ async fn main() -> Result<()> {
         cdc_operator_payload.s3_prefix(),
         cdc_operator_payload.database_name(),
         cdc_operator_payload.schema_name(),
-        cdc_operator_payload.table_names().to_vec(),
+        cdc_operator_payload.included_tables().to_vec(),
+        cdc_operator_payload.excluded_tables().to_vec(),
         Some(cdc_operator_payload.start_date().to_string()),
         cdc_operator_payload.stop_date().map(|x| x.to_string()),
     );
@@ -299,7 +311,8 @@ async fn main() -> Result<()> {
     let cdc_operator_validate_payload = CDCOperatorValidatePayload::new(
         cdc_operator_payload.source_postgres_url(),
         cdc_operator_payload.target_postgres_url(),
-        cdc_operator_payload.table_names().to_vec(),
+        cdc_operator_payload.included_tables().to_vec(),
+        cdc_operator_payload.excluded_tables().to_vec(),
         cdc_operator_payload.schema_name(),
         cdc_operator_payload.chunk_size(),
         cdc_operator_payload.start_position(),

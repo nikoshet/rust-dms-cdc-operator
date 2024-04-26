@@ -1,10 +1,13 @@
+use crate::postgres::table_mode::TableMode;
+
 #[allow(clippy::too_many_arguments)]
 pub struct CDCOperatorSnapshotPayload {
     pub bucket_name: String,
     pub key: String,
     pub database_name: String,
     pub schema_name: String,
-    pub table_names: Vec<String>,
+    pub included_tables: Vec<String>,
+    pub excluded_tables: Vec<String>,
     pub start_date: Option<String>,
     pub stop_date: Option<String>,
 }
@@ -16,7 +19,8 @@ impl CDCOperatorSnapshotPayload {
         key: impl Into<String>,
         database_name: impl Into<String>,
         schema_name: impl Into<String>,
-        table_names: Vec<impl Into<String>>,
+        included_tables: Vec<impl Into<String>>,
+        excluded_tables: Vec<impl Into<String>>,
         start_date: Option<String>,
         stop_date: Option<String>,
     ) -> Self {
@@ -25,7 +29,8 @@ impl CDCOperatorSnapshotPayload {
             key: key.into(),
             database_name: database_name.into(),
             schema_name: schema_name.into(),
-            table_names: table_names.into_iter().map(|x| x.into()).collect(),
+            included_tables: included_tables.into_iter().map(|x| x.into()).collect(),
+            excluded_tables: excluded_tables.into_iter().map(|x| x.into()).collect(),
             start_date,
             stop_date,
         }
@@ -47,8 +52,22 @@ impl CDCOperatorSnapshotPayload {
         self.schema_name.clone()
     }
 
-    pub fn table_names(&self) -> Vec<String> {
-        self.table_names.clone()
+    pub fn included_tables(&self) -> Vec<String> {
+        self.included_tables.clone()
+    }
+
+    pub fn excluded_tables(&self) -> Vec<String> {
+        self.excluded_tables.clone()
+    }
+
+    pub fn table_mode(&self) -> TableMode {
+        if !self.included_tables.is_empty() {
+            TableMode::IncludeTables
+        } else if !self.excluded_tables.is_empty() {
+            TableMode::ExcludeTables
+        } else {
+            TableMode::AllTables
+        }
     }
 
     pub fn start_date(&self) -> Option<String> {

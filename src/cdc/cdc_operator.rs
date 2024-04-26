@@ -2,7 +2,6 @@ use colored::Colorize;
 use log::info;
 use rust_pgdatadiff::diff::diff_ops::Differ;
 use rust_pgdatadiff::diff::diff_payload::DiffPayload;
-
 use std::time::Instant;
 
 use super::snapshot_payload::CDCOperatorSnapshotPayload;
@@ -10,8 +9,6 @@ use super::validate_payload::CDCOperatorValidatePayload;
 use crate::dataframe::dataframe_ops::{CreateDataframePayload, DataframeOperator};
 use crate::postgres::postgres_operator::PostgresOperator;
 use crate::s3::s3_operator::{LoadParquetFilesPayload, S3Operator};
-
-const EMPTY_STRING_VEC: Vec<String> = Vec::new();
 
 /// Represents a CDC Operator that validates the data between S3 and a target database.
 pub struct CDCOperator;
@@ -33,7 +30,18 @@ impl CDCOperator {
         // Check if only_datadiff is true
         info!("{}", "Starting snapshotting...".bold().blue());
 
-        for table_name in &cdc_operator_snapshot_payload.table_names() {
+        // Find the tables for snapshotting
+        let table_list = source_postgres_operator
+            .get_tables_in_schema(
+                cdc_operator_snapshot_payload.schema_name().as_str(),
+                cdc_operator_snapshot_payload.included_tables().as_slice(),
+                cdc_operator_snapshot_payload.excluded_tables().as_slice(),
+                &cdc_operator_snapshot_payload.table_mode(),
+            )
+            .await
+            .unwrap();
+
+        for table_name in &table_list {
             let start = Instant::now();
             info!(
                 "{}",
@@ -216,8 +224,8 @@ impl CDCOperator {
             cdc_operator_validate_payload.chunk_size(),     //chunk-size
             cdc_operator_validate_payload.start_position(), //start-position
             100,                                            //max-connections
-            cdc_operator_validate_payload.table_names().to_vec(),
-            EMPTY_STRING_VEC,
+            cdc_operator_validate_payload.included_tables().to_vec(),
+            cdc_operator_validate_payload.excluded_tables().to_vec(),
             cdc_operator_validate_payload.schema_name(),
         );
         let diff_result = Differ::diff_dbs(payload).await;

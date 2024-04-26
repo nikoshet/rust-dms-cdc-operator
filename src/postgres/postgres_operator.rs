@@ -1,3 +1,4 @@
+use crate::postgres::table_mode::TableMode;
 use anyhow::Result;
 use async_trait::async_trait;
 
@@ -69,6 +70,26 @@ pub trait PostgresOperator {
         schema_name: &str,
         table_name: &str,
     ) -> Result<(), sqlx::Error>;
+
+    /// Get the tables in a schema.
+    ///
+    /// # Arguments
+    ///
+    /// * `schema_name` - The name of the schema.
+    /// * `included_tables` - The tables to include.
+    /// * `excluded_tables` - The tables to exclude.
+    /// * `table_mode` - The mode to use for the tables.
+    ///
+    /// # Returns
+    ///
+    /// A Vec containing the tables in the schema.
+    async fn get_tables_in_schema(
+        &self,
+        schema_name: &str,
+        included_tables: &[String],
+        excluded_tables: &[String],
+        table_mode: &TableMode,
+    ) -> Result<Vec<String>, sqlx::Error>;
 
     /// Insert a DataFrame into the target database.
     ///

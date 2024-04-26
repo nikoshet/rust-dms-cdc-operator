@@ -31,7 +31,7 @@ The tool provides two features for running it, which are `Inquire` and `Clap`.
 
 ### Using Clap
 ```shell
-Usage: rust-cdc-validator-client validate [OPTIONS] --bucket-name <BUCKET_NAME> --s3-prefix <S3_PREFIX> --source-postgres-url <SOURCE_POSTGRES_URL> --target-postgres-url <TARGET_POSTGRES_URL> --table-names [<TABLE_NAMES>...] --start-date <START_DATE>
+Usage: rust-cdc-validator-client validate [OPTIONS] --bucket-name <BUCKET_NAME> --s3-prefix <S3_PREFIX> --source-postgres-url <SOURCE_POSTGRES_URL> --target-postgres-url <TARGET_POSTGRES_URL> --start-date <START_DATE>
 
 Options:
       --bucket-name <BUCKET_NAME>
@@ -44,8 +44,10 @@ Options:
           Url of the target database to import the parquet files Example: postgres://postgres:postgres@localhost:5432/mydb
       --database-schema <DATABASE_SCHEMA>
           Schema of database to validate against S3 files [default: public]
-      --table-names [<TABLE_NAMES>...]
-          List of table names to validate against S3 files
+      --included-tables [<INCLUDED_TABLES>...]
+          List of tables to include for validatation against S3 files
+      --excluded-tables [<EXCLUDED_TABLES>...]
+          List of tables to exclude for validatation against S3 files
       --start-date <START_DATE>
           Start date to filter the Parquet files Example: 2024-02-14T10:00:00Z [default: 2024-02-14T10:00:00Z]
       --stop-date <STOP_DATE>
@@ -95,7 +97,7 @@ cargo clippy --all
 
 cargo build
 
-RUST_LOG=rust_cdc_validator=info,rust_pgdatadiff=info cargo run --features="with-clap" validate --bucket-name my-bucket --s3-prefix prefix/path --source-postgres-url postgres://postgres:postgres@localhost:5432/mydb1 --target-postgres-url postgres://postgres:postgres@localhost:5438/mydb --database-schema public --table-names mytable --start-date 2024-02-14T10:00:00Z --chunk-size 100
+RUST_LOG=rust_cdc_validator=info,rust_pgdatadiff=info cargo run --features="with-clap" validate --bucket-name my-bucket --s3-prefix prefix/path --source-postgres-url postgres://postgres:postgres@localhost:5432/mydb1 --target-postgres-url postgres://postgres:postgres@localhost:5438/mydb --database-schema public --included-tables mytable --start-date 2024-02-14T10:00:00Z --chunk-size 100
 ```
 
 For more debugging, you can enable Rust related logs by exporting the following:
