@@ -7,7 +7,7 @@ use inquire::{Confirm, Text};
 
 #[cfg(feature = "with-clap")]
 use clap::{Parser, Subcommand};
-use rust_cdc_validator::{
+use dms_cdc_operator::{
     cdc::{
         cdc_operator::CDCOperator, cdc_operator_payload::CDCOperatorPayload,
         snapshot_payload::CDCOperatorSnapshotPayload, validate_payload::CDCOperatorValidatePayload,

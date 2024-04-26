@@ -1,14 +1,14 @@
 [package]
-name = "rust-cdc-validator"
-version = "0.1.9"
+name = "dms-cdc-operator"
+version = "0.1.0"
 edition = "2021"
 license = "MIT"
-description = "The rust-cdc-validator is a Rust-based utility for comparing the state of a list of tables in an Amazon RDS database with data stored in Parquet files on Amazon S3, particularly useful for change data capture (CDC) scenarios"
+description = "The dms-cdc-operator is a Rust-based utility for comparing the state of a list of tables in an Amazon RDS database with data stored in Parquet files on Amazon S3, particularly useful for change data capture (CDC) scenarios"
 readme = "README.md"
-homepage = "https://github.com/nikoshet/rust-cdc-validator"
-repository = "https://github.com/nikoshet/rust-cdc-validator"
+homepage = "https://github.com/nikoshet/rust-dms-cdc-operator"
+repository = "https://github.com/nikoshet/rust-dms-cdc-operator"
 keywords = ["postgres", "s3", "cdc", "parquet", "polars"]
-documentation = "https://docs.rs/rust-cdc-validator"
+documentation = "https://docs.rs/dms-cdc-operator"
 exclude = ["script.sh"]
 
 
@@ -57,7 +57,7 @@ mockall = "0.12.1"
 test = true
 edition = "2021"
 crate-type = ["lib"]
-name = "rust_cdc_validator"
+name = "dms_cdc_operator"
 
 [workspace]
-members = ["rust-cdc-validator-client"]
+members = ["dms-cdc-operator-client"]

@@ -1136,6 +1136,47 @@ dependencies = [
 ]
 
 [[package]]
+name = "dms-cdc-operator"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "aws-sdk-s3",
+ "bytes",
+ "chrono",
+ "colored",
+ "indexmap",
+ "log",
+ "mockall",
+ "polars",
+ "polars-core",
+ "polars-utils",
+ "rust-pgdatadiff",
+ "rust_decimal",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "dms-cdc-operator-client"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "aws-config",
+ "aws-sdk-s3",
+ "clap",
+ "colored",
+ "dms-cdc-operator",
+ "inquire",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "doc-comment"
 version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3381,47 +3422,6 @@ dependencies = [
  "spki 0.7.3",
  "subtle",
  "zeroize",
-]
-
-[[package]]
-name = "rust-cdc-validator"
-version = "0.1.9"
-dependencies = [
- "anyhow",
- "async-trait",
- "aws-sdk-s3",
- "bytes",
- "chrono",
- "colored",
- "indexmap",
- "log",
- "mockall",
- "polars",
- "polars-core",
- "polars-utils",
- "rust-pgdatadiff",
- "rust_decimal",
- "serde",
- "serde_json",
- "sqlx",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "rust-cdc-validator-client"
-version = "0.1.9"
-dependencies = [
- "anyhow",
- "aws-config",
- "aws-sdk-s3",
- "clap",
- "colored",
- "inquire",
- "rust-cdc-validator",
- "tokio",
- "tracing",
- "tracing-subscriber",
 ]
 
 [[package]]
