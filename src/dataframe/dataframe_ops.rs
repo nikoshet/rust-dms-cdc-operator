@@ -31,7 +31,7 @@ pub trait DataframeOperator {
     async fn create_dataframe_from_parquet_file(
         &self,
         payload: CreateDataframePayload,
-    ) -> Result<DataFrame>;
+    ) -> Result<Option<DataFrame>>;
 }
 
 pub struct DataframeOperatorImpl<'a> {
@@ -49,7 +49,7 @@ impl DataframeOperator for DataframeOperatorImpl<'_> {
     async fn create_dataframe_from_parquet_file(
         &self,
         payload: CreateDataframePayload,
-    ) -> Result<DataFrame> {
+    ) -> Result<Option<DataFrame>> {
         // If we used LazyFrame, we would have an issue with tokio, since we should have to block on the tokio runtime untill the
         // result is ready with .collect(). To avoid this, we use the ParquetReader, which is a synchronous reader.
         // For LazyFrame, we would have to use the following code:
@@ -83,7 +83,8 @@ impl DataframeOperator for DataframeOperatorImpl<'_> {
             .unwrap();
         debug!("First row: {:?}", df.get(0).unwrap());
         debug!("{:?}", df.schema());
-        Ok(df)
+
+        Ok(Some(df))
     }
 }
 
@@ -101,7 +102,7 @@ mod tests {
 
         dataframe_operator
             .expect_create_dataframe_from_parquet_file()
-            .returning(|_| Ok(DataFrame::empty()));
+            .returning(|_| Ok(Some(DataFrame::empty())));
 
         let create_dataframe_payload = CreateDataframePayload {
             bucket_name: "bucket_name".to_string(),
@@ -116,6 +117,6 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(df.height(), 0);
+        assert_eq!(df.unwrap().height(), 0);
     }
 }

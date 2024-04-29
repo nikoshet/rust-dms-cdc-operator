@@ -289,6 +289,8 @@ async fn main() -> Result<()> {
         cdc_operator_payload.excluded_tables().to_vec(),
         Some(cdc_operator_payload.start_date().to_string()),
         cdc_operator_payload.stop_date().map(|x| x.to_string()),
+        cdc_operator_payload.source_postgres_url().to_string(),
+        cdc_operator_payload.target_postgres_url().to_string(),
     );
 
     if !cdc_operator_payload.only_datadiff() {

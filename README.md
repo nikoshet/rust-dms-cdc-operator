@@ -1,8 +1,8 @@
-# Rust-CDC-Validator
+# Rust-DMS-CDC-Operator
 
 ## Overview
 
-The `rust-cdc-validator` is a Rust-based tool that compares tables in an Amazon RDS (PostgreSQL) database with data migrated to Amazon S3 using AWS Database Migration Service (DMS). It's particularly useful for ensuring data consistency between the RDS database and Parquet files in S3, especially with change data capture (CDC) updates, since DMS validation with S3 as target isn't supported yet.
+The `rust-dms-cdc-operator` is a Rust-based tool that compares tables in an Amazon RDS (PostgreSQL) database with data migrated to Amazon S3 using AWS Database Migration Service (DMS). It's particularly useful for ensuring data consistency between the RDS database and Parquet files in S3, especially with change data capture (CDC) updates, since DMS validation with S3 as target isn't supported yet.
 
 ## Features
 

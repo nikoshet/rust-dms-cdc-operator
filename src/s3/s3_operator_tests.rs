@@ -20,9 +20,9 @@ mod tests {
         s3_operator
             .expect_get_list_of_parquet_files_from_s3()
             .returning(|_| {
-                Ok(vec![
-                    format!("bucket_name/s3_prefix/file.parquet").to_string()
-                ])
+                Ok(vec!["bucket_name/s3_prefix/file.parquet"
+                    .to_string()
+                    .to_string()])
             });
 
         let load_parquet_files_payload = LoadParquetFilesPayload::DateAware {

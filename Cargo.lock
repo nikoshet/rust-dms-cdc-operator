@@ -1137,7 +1137,7 @@ dependencies = [
 
 [[package]]
 name = "dms-cdc-operator"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1150,6 +1150,7 @@ dependencies = [
  "mockall",
  "polars",
  "polars-core",
+ "polars-io",
  "polars-utils",
  "rust-pgdatadiff",
  "rust_decimal",
@@ -1162,7 +1163,7 @@ dependencies = [
 
 [[package]]
 name = "dms-cdc-operator-client"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "aws-config",
@@ -2738,6 +2739,7 @@ dependencies = [
  "chrono",
  "chrono-tz",
  "fast-float",
+ "flate2",
  "futures",
  "home",
  "itoa",
@@ -2766,6 +2768,7 @@ dependencies = [
  "tokio",
  "tokio-util",
  "url",
+ "zstd",
 ]
 
 [[package]]

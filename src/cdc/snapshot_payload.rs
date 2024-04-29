@@ -1,6 +1,7 @@
 use crate::postgres::table_mode::TableMode;
 
 #[allow(clippy::too_many_arguments)]
+#[derive(Clone)]
 pub struct CDCOperatorSnapshotPayload {
     pub bucket_name: String,
     pub key: String,
@@ -10,6 +11,8 @@ pub struct CDCOperatorSnapshotPayload {
     pub excluded_tables: Vec<String>,
     pub start_date: Option<String>,
     pub stop_date: Option<String>,
+    pub source_postgres_url: String,
+    pub target_postgres_url: String,
 }
 
 impl CDCOperatorSnapshotPayload {
@@ -23,6 +26,8 @@ impl CDCOperatorSnapshotPayload {
         excluded_tables: Vec<impl Into<String>>,
         start_date: Option<String>,
         stop_date: Option<String>,
+        source_postgres_url: String,
+        target_postgres_url: String,
     ) -> Self {
         CDCOperatorSnapshotPayload {
             bucket_name: bucket_name.into(),
@@ -33,6 +38,8 @@ impl CDCOperatorSnapshotPayload {
             excluded_tables: excluded_tables.into_iter().map(|x| x.into()).collect(),
             start_date,
             stop_date,
+            source_postgres_url,
+            target_postgres_url,
         }
     }
 
@@ -76,5 +83,13 @@ impl CDCOperatorSnapshotPayload {
 
     pub fn stop_date(&self) -> Option<String> {
         self.stop_date.clone()
+    }
+
+    pub fn source_postgres_url(&self) -> String {
+        self.source_postgres_url.clone()
+    }
+
+    pub fn target_postgres_url(&self) -> String {
+        self.target_postgres_url.clone()
     }
 }

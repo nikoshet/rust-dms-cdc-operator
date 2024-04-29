@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: public.ecr.aws/docker/library/postgres:16.2
+    image: public.ecr.aws/docker/library/postgres:12.17-bullseye
     restart: always
     environment:
       - POSTGRES_USER=postgres
