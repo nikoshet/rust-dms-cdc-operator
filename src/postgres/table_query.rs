@@ -8,6 +8,7 @@ pub enum TableQuery {
     FindPrimaryKey(String, String),
     CreateSchema(String),
     CreateTable(String, String, IndexMap<String, String>, String),
+    DropSchema(String),
 }
 
 impl Display for TableQuery {
@@ -80,6 +81,17 @@ impl Display for TableQuery {
 
                 write!(f, "{}", query)
             }
+
+            TableQuery::DropSchema(schema) => {
+                write!(
+                    f,
+                    // language=postgresql
+                    r#"
+                    DROP SCHEMA IF EXISTS {} CASCADE
+                    "#,
+                    schema
+                )
+            }
         }
     }
 }
@@ -141,6 +153,17 @@ mod tests {
             query.to_string(),
             r#"
                     CREATE SCHEMA IF NOT EXISTS schema
+                    "#
+        );
+    }
+
+    #[test]
+    fn test_display_drop_schema() {
+        let query = TableQuery::DropSchema("schema".to_string());
+        assert_eq!(
+            query.to_string(),
+            r#"
+                    DROP SCHEMA IF EXISTS schema CASCADE
                     "#
         );
     }

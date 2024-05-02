@@ -181,6 +181,19 @@ impl PostgresOperator for PostgresOperatorImpl {
         Ok(())
     }
 
+    async fn drop_schema(&self, schema_name: &str) -> Result<(), sqlx::Error> {
+        let pg_pool = self.db_client.clone();
+
+        // Prepare the query to drop a schema
+        let query = DropSchema(schema_name.to_string());
+        sqlx::query(&query.to_string())
+            .execute(&pg_pool)
+            .await
+            .expect("Failed to drop schema");
+
+        Ok(())
+    }
+
     #[instrument(name = "Insert data into table", skip(self, df))]
     async fn insert_dataframe_in_target_db(
         &self,
