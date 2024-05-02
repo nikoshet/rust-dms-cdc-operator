@@ -143,6 +143,17 @@ pub trait PostgresOperator {
         payload: UpsertDataframePayload,
     ) -> Result<()>;
 
+    /// Drop schema in the target database.
+    ///
+    /// # Arguments
+    ///
+    /// * `schema_name` - The name of the schema.
+    ///
+    /// # Returns
+    ///
+    /// A Result indicating success or failure.
+    async fn drop_schema(&self, schema_name: &str) -> Result<(), sqlx::Error>;
+
     /// Close the connection pool.
     ///
     /// # Returns
