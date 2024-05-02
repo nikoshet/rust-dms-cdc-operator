@@ -5,6 +5,7 @@ use log::debug;
 use polars::prelude::*;
 
 use polars_core::export::num::ToPrimitive;
+
 use sqlx::{Pool, Postgres, Row};
 use std::fmt::Display;
 
@@ -199,68 +200,80 @@ impl PostgresOperator for PostgresOperatorImpl {
         let column_names = df.get_column_names();
         let fields = column_names.join(", ");
 
-        let insert_rows_number = 100_000;
+        let df_height = df.height().to_i64().unwrap();
 
-        info!("Insert rows number: {insert_rows_number}");
+        info!("Total DF height: {df_height}");
 
-        let mut offset = 0;
-        // Insert rows in chunks to avoid the bulk insert issue of EOF
-        while offset
-            <= df
-                .height()
-                .to_i64()
-                .expect("Error while looping through the dataframe")
-        {
-            debug!("Inserting rows in chunks");
-            debug!("Offset: {offset}");
-            debug!("Dataframe height: {df_height}", df_height = df.height());
+        if df_height >= 200_000 {
+            let rows_per_df = 10_000;
+            let mut offset = 0i64;
 
-            let df_slice = df.slice(offset, insert_rows_number);
-            debug!(
-                "Current offset: {}, current df height: {}",
-                offset,
-                df_slice.height()
-            );
+            while offset <= df_height {
+                debug!("Inserting rows at offset: {offset}");
+                let df_chunk = df.slice(offset, rows_per_df);
+                let df_height = df_chunk.height();
+                let df_columns = df_chunk.get_columns();
 
-            // Construct the query with placeholders
-            let values = (0..df_slice.height())
-                .map(|row| {
-                    df_slice
-                        .get_columns()
-                        .iter()
-                        .map(|column| column.get(row).unwrap())
-                        .collect::<Vec<_>>()
-                })
-                .collect::<Vec<_>>();
+                let values = (0..df_height)
+                    .map(|row_idx| {
+                        let values = df_columns
+                            .iter()
+                            .map(|column| column.get(row_idx).unwrap())
+                            .collect::<Vec<_>>();
 
-            let values = values
-                .iter()
-                .map(|row_values| {
-                    let concatenated_row_values = row_values
-                        .iter()
-                        .map(|v| RowStruct::new(v).displayed())
-                        .collect::<Vec<_>>()
-                        .join(", ");
+                        let values_of_row = values
+                            .iter()
+                            .map(|v| RowStruct::new(v).displayed())
+                            .collect::<Vec<_>>()
+                            .join(", ");
 
-                    format!("({concatenated_row_values})")
-                })
-                .collect::<Vec<_>>()
-                .join(", ");
+                        format!("({})", values_of_row)
+                    })
+                    .collect::<Vec<String>>()
+                    .join(", ");
 
-            let query = format!(
-                "INSERT INTO {schema_name}.{table_name} ({fields}) VALUES {values}",
-                schema_name = payload.schema_name,
-                table_name = payload.table_name,
-            );
+                let query = format!(
+                    "INSERT INTO {schema_name}.{table_name} ({fields}) VALUES {values}",
+                    schema_name = payload.schema_name,
+                    table_name = payload.table_name,
+                );
 
-            sqlx::query(&query)
-                .execute(&pg_pool)
-                .await
-                .expect("Failed to insert data into table");
+                sqlx::query(&query)
+                    .execute(&pg_pool)
+                    .await
+                    .expect("Failed to insert data into table");
 
-            offset += insert_rows_number
-                .to_i64()
-                .expect("Error while incrementing the offset");
+                offset += rows_per_df.to_i64().unwrap();
+            }
+        } else {
+            for row in 0..df_height {
+                debug!("Inserting rows in chunks");
+                debug!("Dataframe height: {df_height}");
+
+                // Construct the query with placeholders
+                let df_columns = df.get_columns();
+                let values = df_columns
+                    .iter()
+                    .map(|column| column.get(row.try_into().unwrap()).unwrap())
+                    .collect::<Vec<_>>();
+
+                let values_of_row = values
+                    .iter()
+                    .map(|v| RowStruct::new(v).displayed())
+                    .collect::<Vec<_>>()
+                    .join(", ");
+
+                let query = format!(
+                    "INSERT INTO {schema_name}.{table_name} ({fields}) VALUES ({values_of_row})",
+                    schema_name = payload.schema_name,
+                    table_name = payload.table_name,
+                );
+
+                sqlx::query(&query)
+                    .execute(&pg_pool)
+                    .await
+                    .expect("Failed to insert data into table");
+            }
         }
 
         Ok(())

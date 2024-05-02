@@ -133,6 +133,7 @@ impl CDCOperator {
                     .map_err(|e| {
                         panic!("Error reading Parquet file: {:?}", e);
                     })
+                    .unwrap()
                     .unwrap();
 
                 let is_load_file = file
