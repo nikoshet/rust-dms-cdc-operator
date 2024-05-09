@@ -7,7 +7,6 @@ use polars::prelude::*;
 #[cfg(test)]
 use mockall::automock;
 
-#[derive(Clone)]
 pub struct CreateDataframePayload {
     pub bucket_name: String,
     pub key: String,
@@ -30,7 +29,7 @@ pub trait DataframeOperator {
     /// A DataFrame.
     async fn create_dataframe_from_parquet_file(
         &self,
-        payload: CreateDataframePayload,
+        payload: &CreateDataframePayload,
     ) -> Result<Option<DataFrame>>;
 }
 
@@ -48,7 +47,7 @@ impl<'a> DataframeOperatorImpl<'a> {
 impl DataframeOperator for DataframeOperatorImpl<'_> {
     async fn create_dataframe_from_parquet_file(
         &self,
-        payload: CreateDataframePayload,
+        payload: &CreateDataframePayload,
     ) -> Result<Option<DataFrame>> {
         // If we used LazyFrame, we would have an issue with tokio, since we should have to block on the tokio runtime untill the
         // result is ready with .collect(). To avoid this, we use the ParquetReader, which is a synchronous reader.
@@ -67,8 +66,8 @@ impl DataframeOperator for DataframeOperatorImpl<'_> {
         let object = self
             .s3_client
             .get_object()
-            .bucket(payload.bucket_name)
-            .key(payload.key)
+            .bucket(&payload.bucket_name)
+            .key(&payload.key)
             .send()
             .await
             .unwrap();
@@ -113,7 +112,7 @@ mod tests {
         };
 
         let df = dataframe_operator
-            .create_dataframe_from_parquet_file(create_dataframe_payload)
+            .create_dataframe_from_parquet_file(&create_dataframe_payload)
             .await
             .unwrap();
 

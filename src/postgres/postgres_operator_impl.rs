@@ -160,7 +160,7 @@ impl PostgresOperator for PostgresOperatorImpl {
     async fn create_table(
         &self,
         column_data_types: &IndexMap<String, String>,
-        primary_keys: Vec<String>,
+        primary_keys: &[String],
         schema_name: &str,
         table_name: &str,
     ) -> Result<(), sqlx::Error> {
@@ -171,7 +171,7 @@ impl PostgresOperator for PostgresOperatorImpl {
             schema_name.to_string(),
             table_name.to_string(),
             column_data_types.clone(),
-            primary_keys.as_slice().join(","),
+            primary_keys.join(","),
         );
         sqlx::query(&query.to_string())
             .execute(&pg_pool)
@@ -197,8 +197,8 @@ impl PostgresOperator for PostgresOperatorImpl {
     #[instrument(name = "Insert data into table", skip(self, df))]
     async fn insert_dataframe_in_target_db(
         &self,
-        df: DataFrame,
-        payload: InsertDataframePayload,
+        df: &DataFrame,
+        payload: &InsertDataframePayload,
     ) -> Result<()> {
         let pg_pool = self.db_client.clone();
 
@@ -295,8 +295,8 @@ impl PostgresOperator for PostgresOperatorImpl {
     #[instrument(name = "Upsert data into table", skip(self, df))]
     async fn upsert_dataframe_in_target_db(
         &self,
-        df: DataFrame,
-        payload: UpsertDataframePayload,
+        df: &DataFrame,
+        payload: &UpsertDataframePayload,
     ) -> Result<()> {
         let pg_pool = self.db_client.clone();
 

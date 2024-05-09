@@ -1,7 +1,7 @@
 use crate::postgres::table_mode::TableMode;
 
 #[allow(clippy::too_many_arguments)]
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct CDCOperatorSnapshotPayload {
     pub bucket_name: String,
     pub key: String,

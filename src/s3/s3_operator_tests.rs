@@ -36,7 +36,7 @@ mod tests {
         };
 
         let files = s3_operator
-            .get_list_of_parquet_files_from_s3(load_parquet_files_payload)
+            .get_list_of_parquet_files_from_s3(&load_parquet_files_payload)
             .await
             .unwrap();
 
@@ -62,10 +62,10 @@ mod tests {
 
         let files = s3_operator
             .get_files_from_s3_based_on_date(
-                bucket_name,
-                start_date_path,
-                prefix_path,
-                start_date,
+                &bucket_name,
+                &start_date_path,
+                &prefix_path,
+                &start_date,
                 stop_date,
             )
             .await
