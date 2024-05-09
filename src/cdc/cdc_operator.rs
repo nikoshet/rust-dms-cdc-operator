@@ -84,7 +84,7 @@ impl CDCOperator {
             let _ = target_postgres_operator
                 .create_table(
                     &source_table_columns,
-                    primary_key_list.clone(),
+                    primary_key_list.as_slice(),
                     cdc_operator_snapshot_payload.schema_name().as_str(),
                     table_name,
                 )
@@ -112,7 +112,7 @@ impl CDCOperator {
             };
 
             let parquet_files = s3_operator
-                .get_list_of_parquet_files_from_s3(load_parquet_files_payload)
+                .get_list_of_parquet_files_from_s3(&load_parquet_files_payload)
                 .await;
 
             // Read the Parquet files from S3
@@ -128,7 +128,7 @@ impl CDCOperator {
                 };
 
                 let current_df = dataframe_operator
-                    .create_dataframe_from_parquet_file(create_dataframe_payload.clone())
+                    .create_dataframe_from_parquet_file(&create_dataframe_payload)
                     .await
                     .map_err(|e| {
                         panic!("Error reading Parquet file: {:?}", e);
@@ -166,7 +166,7 @@ impl CDCOperator {
                     };
 
                     target_postgres_operator
-                        .insert_dataframe_in_target_db(current_df, insert_dataframe_payload)
+                        .insert_dataframe_in_target_db(&current_df, &insert_dataframe_payload)
                         .await
                         .unwrap_or_else(|_| {
                             panic!("Failed to insert LOAD file {:?} into table", file)
@@ -183,7 +183,7 @@ impl CDCOperator {
                     };
 
                     target_postgres_operator
-                        .upsert_dataframe_in_target_db(current_df, upsert_dataframe_payload)
+                        .upsert_dataframe_in_target_db(&current_df, &upsert_dataframe_payload)
                         .await
                         .unwrap_or_else(|_| {
                             panic!("Failed to upsert CDC file {:?} into table", file)

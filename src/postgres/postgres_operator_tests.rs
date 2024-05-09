@@ -62,7 +62,7 @@ mod tests {
         postgres_operator
             .create_table(
                 &column_data_types,
-                vec!["primary_key".to_string()],
+                vec!["primary_key".to_string()].as_slice(),
                 "schema",
                 "table",
             )
@@ -86,7 +86,7 @@ mod tests {
         };
 
         postgres_operator
-            .insert_dataframe_in_target_db(df, payload)
+            .insert_dataframe_in_target_db(&df, &payload)
             .await
             .unwrap();
     }
@@ -107,7 +107,7 @@ mod tests {
             primary_key: "primary_key".to_string(),
         };
         postgres_operator
-            .upsert_dataframe_in_target_db(df, payload)
+            .upsert_dataframe_in_target_db(&df, &payload)
             .await
             .unwrap();
     }

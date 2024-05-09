@@ -81,7 +81,7 @@ pub trait PostgresOperator {
     async fn create_table(
         &self,
         column_data_types: &indexmap::IndexMap<String, String>,
-        primary_key: Vec<String>,
+        primary_key: &[String],
         schema_name: &str,
         table_name: &str,
     ) -> Result<(), sqlx::Error>;
@@ -120,8 +120,8 @@ pub trait PostgresOperator {
     /// A Result indicating success or failure.
     async fn insert_dataframe_in_target_db(
         &self,
-        df: polars::frame::DataFrame,
-        payload: InsertDataframePayload,
+        df: &polars::frame::DataFrame,
+        payload: &InsertDataframePayload,
     ) -> Result<()>;
 
     /// Upsert a DataFrame into the target database.
@@ -139,8 +139,8 @@ pub trait PostgresOperator {
     /// A Result indicating success or failure.
     async fn upsert_dataframe_in_target_db(
         &self,
-        df: polars::frame::DataFrame,
-        payload: UpsertDataframePayload,
+        df: &polars::frame::DataFrame,
+        payload: &UpsertDataframePayload,
     ) -> Result<()>;
 
     /// Drop schema in the target database.

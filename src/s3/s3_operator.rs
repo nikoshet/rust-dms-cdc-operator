@@ -42,7 +42,7 @@ pub trait S3Operator {
     #[allow(clippy::too_many_arguments)]
     async fn get_list_of_parquet_files_from_s3(
         &self,
-        load_parquet_files_payload: LoadParquetFilesPayload,
+        load_parquet_files_payload: &LoadParquetFilesPayload,
     ) -> Result<Vec<String>>;
 
     /// Gets the list of files from S3 based on the date.
@@ -60,10 +60,10 @@ pub trait S3Operator {
     /// A list of files.
     async fn get_files_from_s3_based_on_date(
         &self,
-        bucket_name: String,
-        start_date_path: String,
-        prefix_path: String,
-        start_date: DateTime,
+        bucket_name: &str,
+        start_date_path: &str,
+        prefix_path: &str,
+        start_date: &DateTime,
         stop_date: Option<DateTime>,
     ) -> Result<Vec<String>>;
 }
@@ -82,7 +82,7 @@ impl<'a> S3OperatorImpl<'a> {
 impl S3Operator for S3OperatorImpl<'_> {
     async fn get_list_of_parquet_files_from_s3(
         &self,
-        s3_parquet_file_load_key: LoadParquetFilesPayload,
+        s3_parquet_file_load_key: &LoadParquetFilesPayload,
     ) -> Result<Vec<String>> {
         let parquet_files = match s3_parquet_file_load_key {
             LoadParquetFilesPayload::DateAware {
@@ -111,18 +111,17 @@ impl S3Operator for S3OperatorImpl<'_> {
                     None
                 } else {
                     Some(DateTime::from_str(
-                        &stop_date.unwrap(),
+                        stop_date.as_ref().unwrap().as_str(),
                         DateTimeFormat::DateTimeWithOffset,
                     )?)
                 };
 
-                let mut files_list: Vec<String>;
-                files_list = self
+                let mut files_list: Vec<String> = self
                     .get_files_from_s3_based_on_date(
-                        bucket_name,
-                        start_date_path,
-                        format!("{}/", prefix_path),
-                        start_date,
+                        bucket_name.as_str(),
+                        start_date_path.as_str(),
+                        format!("{}/", prefix_path).as_str(),
+                        &start_date,
                         stop_date,
                     )
                     .await?;
@@ -134,7 +133,7 @@ impl S3Operator for S3OperatorImpl<'_> {
                 files_list
             }
             LoadParquetFilesPayload::AbsolutePath(absolute_path) => {
-                vec![absolute_path]
+                vec![absolute_path.to_string()]
             }
         };
 
@@ -143,10 +142,10 @@ impl S3Operator for S3OperatorImpl<'_> {
 
     async fn get_files_from_s3_based_on_date(
         &self,
-        bucket_name: String,
-        start_date_path: String,
-        prefix_path: String,
-        start_date: DateTime,
+        bucket_name: &str,
+        start_date_path: &str,
+        prefix_path: &str,
+        start_date: &DateTime,
         stop_date: Option<DateTime>,
     ) -> Result<Vec<String>> {
         let mut files: Vec<String> = Vec::new();
@@ -156,9 +155,9 @@ impl S3Operator for S3OperatorImpl<'_> {
             let builder = self
                 .s3_client
                 .list_objects_v2()
-                .bucket(&bucket_name)
-                .start_after(&start_date_path)
-                .prefix(&prefix_path);
+                .bucket(bucket_name)
+                .start_after(start_date_path)
+                .prefix(prefix_path);
 
             let response = if next_token.is_some() {
                 builder
@@ -174,7 +173,7 @@ impl S3Operator for S3OperatorImpl<'_> {
                     .map_err(aws_sdk_s3::Error::from)?
             };
 
-            next_token = response.next_continuation_token.clone();
+            next_token.clone_from(&response.next_continuation_token);
 
             if let Some(contents) = response.contents {
                 for object in contents.clone() {
@@ -182,13 +181,13 @@ impl S3Operator for S3OperatorImpl<'_> {
                     // Filter files based on last modified date
                     if let Some(last_modified) = object.last_modified {
                         if let Some(stop_date) = stop_date {
-                            if (last_modified > start_date && last_modified < stop_date)
+                            if (last_modified > *start_date && last_modified < stop_date)
                                 || file.contains("LOAD")
                             {
                                 debug!("File: {:?}", file);
                                 files.push(file);
                             }
-                        } else if last_modified > start_date || file.contains("LOAD") {
+                        } else if last_modified > *start_date || file.contains("LOAD") {
                             debug!("File: {:?}", file);
                             files.push(file);
                         }

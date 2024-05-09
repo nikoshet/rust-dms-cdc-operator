@@ -1,5 +1,4 @@
 /// Represents a CDC Operator payload that validates the data between S3 and a target database.
-#[derive(Clone)]
 pub struct CDCOperatorPayload {
     bucket_name: String,
     s3_prefix: String,
