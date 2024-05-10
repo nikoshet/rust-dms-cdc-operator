@@ -3,6 +3,7 @@ mod tests {
     use crate::s3::s3_operator::LoadParquetFilesPayload;
     use crate::s3::s3_operator::MockS3Operator;
     use crate::s3::s3_operator::S3Operator;
+    use crate::s3::s3_operator::S3ParquetFile;
     use aws_sdk_s3::primitives::{DateTime, DateTimeFormat};
 
     #[tokio::test]
@@ -20,9 +21,9 @@ mod tests {
         s3_operator
             .expect_get_list_of_parquet_files_from_s3()
             .returning(|_| {
-                Ok(vec!["bucket_name/s3_prefix/file.parquet"
-                    .to_string()
-                    .to_string()])
+                Ok(vec![S3ParquetFile::new(
+                    "bucket_name/s3_prefix/file.parquet",
+                )])
             });
 
         let load_parquet_files_payload = LoadParquetFilesPayload::DateAware {
@@ -49,7 +50,7 @@ mod tests {
 
         s3_operator
             .expect_get_files_from_s3_based_on_date()
-            .returning(|_, _, _, _, _| Ok(vec!["file1".to_string()]));
+            .returning(|_, _, _, _, _| Ok(vec![S3ParquetFile::new("file1")]));
 
         let bucket_name = "bucket_name".to_string();
         let start_date_path = "start_date_path".to_string();

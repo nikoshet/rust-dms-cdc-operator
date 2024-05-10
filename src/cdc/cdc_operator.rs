@@ -121,7 +121,7 @@ impl CDCOperator {
             for file in &parquet_files.unwrap() {
                 let create_dataframe_payload = CreateDataframePayload {
                     bucket_name: cdc_operator_snapshot_payload.bucket_name(),
-                    key: file.to_string(),
+                    key: file.file_name.to_string(),
                     database_name: cdc_operator_snapshot_payload.database_name(),
                     schema_name: cdc_operator_snapshot_payload.schema_name(),
                     table_name: table_name.clone(),
@@ -136,14 +136,7 @@ impl CDCOperator {
                     .unwrap()
                     .unwrap();
 
-                let is_load_file = file
-                    .split('/')
-                    .collect::<Vec<&str>>()
-                    .last()
-                    .unwrap()
-                    .contains("LOAD");
-
-                if is_load_file {
+                if file.is_load_file() {
                     info!("Processing LOAD file: {:?}", file);
                     // Check if the schema of the table is the same as the schema of the Parquet file
                     // in case of altered column names or dropped columns
