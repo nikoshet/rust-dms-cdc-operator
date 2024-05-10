@@ -21,6 +21,27 @@ pub enum LoadParquetFilesPayload {
     AbsolutePath(String),
 }
 
+#[derive(Debug)]
+pub struct S3ParquetFile {
+    pub file_name: String,
+}
+
+impl S3ParquetFile {
+    pub fn new(file_name: impl Into<String>) -> Self {
+        Self {
+            file_name: file_name.into(),
+        }
+    }
+
+    pub fn is_load_file(&self) -> bool {
+        self.file_name.contains("LOAD")
+    }
+
+    pub fn is_first_load_file(&self) -> bool {
+        self.is_load_file() && self.file_name.contains('1')
+    }
+}
+
 #[cfg_attr(test, automock)]
 #[async_trait]
 pub trait S3Operator {
@@ -43,7 +64,7 @@ pub trait S3Operator {
     async fn get_list_of_parquet_files_from_s3(
         &self,
         load_parquet_files_payload: &LoadParquetFilesPayload,
-    ) -> Result<Vec<String>>;
+    ) -> Result<Vec<S3ParquetFile>>;
 
     /// Gets the list of files from S3 based on the date.
     ///
@@ -65,7 +86,7 @@ pub trait S3Operator {
         prefix_path: &str,
         start_date: &DateTime,
         stop_date: Option<DateTime>,
-    ) -> Result<Vec<String>>;
+    ) -> Result<Vec<S3ParquetFile>>;
 }
 
 pub struct S3OperatorImpl<'a> {
@@ -83,7 +104,7 @@ impl S3Operator for S3OperatorImpl<'_> {
     async fn get_list_of_parquet_files_from_s3(
         &self,
         s3_parquet_file_load_key: &LoadParquetFilesPayload,
-    ) -> Result<Vec<String>> {
+    ) -> Result<Vec<S3ParquetFile>> {
         let parquet_files = match s3_parquet_file_load_key {
             LoadParquetFilesPayload::DateAware {
                 bucket_name,
@@ -116,7 +137,7 @@ impl S3Operator for S3OperatorImpl<'_> {
                     )?)
                 };
 
-                let mut files_list: Vec<String> = self
+                let mut files_list: Vec<S3ParquetFile> = self
                     .get_files_from_s3_based_on_date(
                         bucket_name.as_str(),
                         start_date_path.as_str(),
@@ -128,12 +149,12 @@ impl S3Operator for S3OperatorImpl<'_> {
 
                 // We want to process the LOAD files first in INSERT mode, so we rotate the list,
                 // Then, we will process the rest CDC files in UPSERT mode.
-                let load_files_count = files_list.iter().filter(|s| s.contains("LOAD")).count();
+                let load_files_count = files_list.iter().filter(|s| s.is_load_file()).count();
                 files_list.rotate_right(load_files_count);
                 files_list
             }
             LoadParquetFilesPayload::AbsolutePath(absolute_path) => {
-                vec![absolute_path.to_string()]
+                vec![S3ParquetFile::new(absolute_path.to_string())]
             }
         };
 
@@ -147,7 +168,7 @@ impl S3Operator for S3OperatorImpl<'_> {
         prefix_path: &str,
         start_date: &DateTime,
         stop_date: Option<DateTime>,
-    ) -> Result<Vec<String>> {
+    ) -> Result<Vec<S3ParquetFile>> {
         let mut files: Vec<String> = Vec::new();
         let mut next_token = None;
 
@@ -199,6 +220,12 @@ impl S3Operator for S3OperatorImpl<'_> {
                 break;
             }
         }
+
+        let files = files
+            .iter()
+            .map(|f| S3ParquetFile::new(f.to_string()))
+            .collect::<Vec<_>>();
+
         Ok(files)
     }
 }
