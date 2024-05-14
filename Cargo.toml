@@ -50,6 +50,7 @@ polars-utils = "0.39.2"
 polars-io = "0.39.2"
 rust_decimal = "1.35.0"
 tracing = "0.1.40"
+futures = "0.3.30"
 
 [dev-dependencies]
 mockall = "0.12.1"

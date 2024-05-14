@@ -8,6 +8,7 @@ use polars_core::export::num::ToPrimitive;
 
 use sqlx::{Pool, Postgres, Row};
 use std::fmt::Display;
+use tokio::task;
 
 use tracing::{info, instrument};
 use TableQuery::*;
@@ -259,34 +260,81 @@ impl PostgresOperator for PostgresOperatorImpl {
                 offset += rows_per_df.to_i64().unwrap();
             }
         } else {
-            for row in 0..df_height {
-                debug!("Inserting rows in chunks");
-                debug!("Dataframe height: {df_height}");
+            let pg_pool = Arc::new(pg_pool);
+            let df = Arc::new(df);
+            let schema_name = Arc::new(payload.schema_name.clone());
+            let table_name = Arc::new(payload.table_name.clone());
+            let fields = Arc::new(fields.clone());
 
-                // Construct the query with placeholders
-                let df_columns = df.get_columns();
-                let values = df_columns
-                    .iter()
-                    .map(|column| column.get(row.try_into().unwrap()).unwrap())
-                    .collect::<Vec<_>>();
+            let futures = (0..df_height)
+                .map(|row| {
+                    let pg_pool = Arc::clone(&pg_pool); // Clone the Arc reference for pg_pool
+                    let df = Arc::clone(&df); // Clone the Arc reference for df
+                    let schema_name = Arc::clone(&schema_name); // Clone the Arc reference for schema_name
+                    let table_name = Arc::clone(&table_name); // Clone the Arc reference for table_name
+                    let fields = Arc::clone(&fields); // Clone the Arc reference for fields
 
-                let values_of_row = values
-                    .iter()
-                    .map(|v| RowStruct::new(v).displayed())
-                    .collect::<Vec<_>>()
-                    .join(", ");
+                    task::spawn(async move {
+                        debug!("Inserting rows in chunks");
+                        debug!("Dataframe height: {df_height}");
 
-                let query = format!(
+                        // Construct the query with placeholders
+                        let df_columns = df.get_columns();
+                        let values = df_columns
+                            .iter()
+                            .map(|column| column.get(row.try_into().unwrap()).unwrap())
+                            .collect::<Vec<_>>();
+
+                        let values_of_row = values
+                            .iter()
+                            .map(|v| RowStruct::new(v).displayed())
+                            .collect::<Vec<_>>()
+                            .join(", ");
+
+                        let query = format!(
                     "INSERT INTO {schema_name}.{table_name} ({fields}) VALUES ({values_of_row})",
-                    schema_name = payload.schema_name,
-                    table_name = payload.table_name,
                 );
 
-                sqlx::query(&query)
-                    .execute(&pg_pool)
-                    .await
-                    .expect("Failed to insert data into table");
-            }
+                        info!("Query: {query}");
+
+                        sqlx::query(&query)
+                            .execute(&*pg_pool)
+                            .await
+                            .expect("Failed to insert data into table");
+                    })
+                })
+                .collect::<Vec<_>>();
+
+            _ = futures::future::join_all(futures).await;
+
+            // for row in 0..df_height {
+            //     debug!("Inserting rows in chunks");
+            //     debug!("Dataframe height: {df_height}");
+
+            //     // Construct the query with placeholders
+            //     let df_columns = df.get_columns();
+            //     let values = df_columns
+            //         .iter()
+            //         .map(|column| column.get(row.try_into().unwrap()).unwrap())
+            //         .collect::<Vec<_>>();
+
+            //     let values_of_row = values
+            //         .iter()
+            //         .map(|v| RowStruct::new(v).displayed())
+            //         .collect::<Vec<_>>()
+            //         .join(", ");
+
+            //     let query = format!(
+            //         "INSERT INTO {schema_name}.{table_name} ({fields}) VALUES ({values_of_row})",
+            //         schema_name = payload.schema_name,
+            //         table_name = payload.table_name,
+            //     );
+
+            //     sqlx::query(&query)
+            //         .execute(&pg_pool)
+            //         .await
+            //         .expect("Failed to insert data into table");
+            // }
         }
 
         Ok(())
