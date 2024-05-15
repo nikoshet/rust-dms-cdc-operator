@@ -231,16 +231,14 @@ impl PostgresOperator for PostgresOperatorImpl {
                     .map(|row_idx| {
                         let values = df_columns
                             .iter()
-                            .map(|column| column.get(row_idx).unwrap())
-                            .collect::<Vec<_>>();
-
-                        let values_of_row = values
-                            .iter()
-                            .map(|v| RowStruct::new(v).displayed())
+                            .map(|column| {
+                                let v = column.get(row_idx.try_into().unwrap()).unwrap();
+                                RowStruct::new(&v).displayed()
+                            })
                             .collect::<Vec<_>>()
                             .join(", ");
 
-                        format!("({})", values_of_row)
+                        format!("({})", values)
                     })
                     .collect::<Vec<String>>()
                     .join(", ");
@@ -267,17 +265,15 @@ impl PostgresOperator for PostgresOperatorImpl {
                 let df_columns = df.get_columns();
                 let values = df_columns
                     .iter()
-                    .map(|column| column.get(row.try_into().unwrap()).unwrap())
-                    .collect::<Vec<_>>();
-
-                let values_of_row = values
-                    .iter()
-                    .map(|v| RowStruct::new(v).displayed())
+                    .map(|column| {
+                        let v = column.get(row.try_into().unwrap()).unwrap();
+                        RowStruct::new(&v).displayed()
+                    })
                     .collect::<Vec<_>>()
                     .join(", ");
 
                 let query = format!(
-                    "INSERT INTO {schema_name}.{table_name} ({fields}) VALUES ({values_of_row})",
+                    "INSERT INTO {schema_name}.{table_name} ({fields}) VALUES ({values})",
                     schema_name = payload.schema_name,
                     table_name = payload.table_name,
                 );
@@ -350,7 +346,14 @@ impl PostgresOperator for PostgresOperatorImpl {
                 sqlx::query(&query.to_string().replace('"', "'"))
                     .execute(&pg_pool)
                     .await
-                    .expect("Failed to delete rows from table");
+                    .expect(
+                        format!(
+                            "Failed to delete rows from table: {schema_name}.{table_name}",
+                            schema_name = payload.schema_name.clone(),
+                            table_name = payload.table_name.clone()
+                        )
+                        .as_str(),
+                    );
 
                 deleted_row = true;
                 break;
@@ -405,10 +408,14 @@ impl PostgresOperator for PostgresOperatorImpl {
             let query = format!("{query}{on_conflict_strategy}");
 
             debug!("Query: {}", query);
-            sqlx::query(&query)
-                .execute(&pg_pool)
-                .await
-                .expect("Failed to upsert data into table");
+            sqlx::query(&query).execute(&pg_pool).await.expect(
+                format!(
+                    "Failed to upsert data in table: {schema_name}.{table_name}",
+                    schema_name = payload.schema_name.clone(),
+                    table_name = payload.table_name.clone()
+                )
+                .as_str(),
+            );
         }
 
         Ok(())
