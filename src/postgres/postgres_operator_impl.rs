@@ -232,7 +232,7 @@ impl PostgresOperator for PostgresOperatorImpl {
                         let values = df_columns
                             .iter()
                             .map(|column| {
-                                let v = column.get(row_idx.try_into().unwrap()).unwrap();
+                                let v = column.get(row_idx).unwrap();
                                 RowStruct::new(&v).displayed()
                             })
                             .collect::<Vec<_>>()
@@ -346,14 +346,13 @@ impl PostgresOperator for PostgresOperatorImpl {
                 sqlx::query(&query.to_string().replace('"', "'"))
                     .execute(&pg_pool)
                     .await
-                    .expect(
-                        format!(
+                    .unwrap_or_else(|_| {
+                        panic!(
                             "Failed to delete rows from table: {schema_name}.{table_name}",
                             schema_name = payload.schema_name.clone(),
                             table_name = payload.table_name.clone()
                         )
-                        .as_str(),
-                    );
+                    });
 
                 deleted_row = true;
                 break;
@@ -408,14 +407,16 @@ impl PostgresOperator for PostgresOperatorImpl {
             let query = format!("{query}{on_conflict_strategy}");
 
             debug!("Query: {}", query);
-            sqlx::query(&query).execute(&pg_pool).await.expect(
-                format!(
-                    "Failed to upsert data in table: {schema_name}.{table_name}",
-                    schema_name = payload.schema_name.clone(),
-                    table_name = payload.table_name.clone()
-                )
-                .as_str(),
-            );
+            sqlx::query(&query)
+                .execute(&pg_pool)
+                .await
+                .unwrap_or_else(|_| {
+                    panic!(
+                        "Failed to upsert data in table: {schema_name}.{table_name}",
+                        schema_name = payload.schema_name.clone(),
+                        table_name = payload.table_name.clone()
+                    )
+                });
         }
 
         Ok(())
