@@ -50,9 +50,10 @@ mod tests {
 
         s3_operator
             .expect_get_files_from_s3_based_on_date()
-            .returning(|_, _, _, _, _| Ok(vec![S3ParquetFile::new("file1")]));
+            .returning(|_, _, _, _, _, _| Ok(vec![S3ParquetFile::new("file1")]));
 
         let bucket_name = "bucket_name".to_string();
+        let table_name = "table_name".to_string();
         let start_date_path = "start_date_path".to_string();
         let prefix_path = "prefix_path".to_string();
         let start_date =
@@ -64,6 +65,7 @@ mod tests {
         let files = s3_operator
             .get_files_from_s3_based_on_date(
                 &bucket_name,
+                &table_name,
                 &start_date_path,
                 &prefix_path,
                 &start_date,

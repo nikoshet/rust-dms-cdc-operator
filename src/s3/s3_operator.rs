@@ -71,6 +71,7 @@ pub trait S3Operator {
     /// # Arguments
     ///
     /// * `bucket_name` - The name of the S3 bucket
+    /// * `table_name` - The name of the table
     /// * `start_date_path` - The start date path
     /// * `prefix_path` - The prefix path
     /// * `start_date` - The start date to include the files
@@ -82,6 +83,7 @@ pub trait S3Operator {
     async fn get_files_from_s3_based_on_date(
         &self,
         bucket_name: &str,
+        table_name: &str,
         start_date_path: &str,
         prefix_path: &str,
         start_date: &DateTime,
@@ -140,6 +142,7 @@ impl S3Operator for S3OperatorImpl<'_> {
                 let mut files_list: Vec<S3ParquetFile> = self
                     .get_files_from_s3_based_on_date(
                         bucket_name.as_str(),
+                        table_name.as_str(),
                         start_date_path.as_str(),
                         format!("{}/", prefix_path).as_str(),
                         &start_date,
@@ -164,6 +167,7 @@ impl S3Operator for S3OperatorImpl<'_> {
     async fn get_files_from_s3_based_on_date(
         &self,
         bucket_name: &str,
+        table_name: &str,
         start_date_path: &str,
         prefix_path: &str,
         start_date: &DateTime,
@@ -216,7 +220,7 @@ impl S3Operator for S3OperatorImpl<'_> {
                 }
             }
             if next_token.is_none() {
-                info!("Files to process: {:?}", files.clone().len());
+                info!("Files to process for table {table_name}: {:?}", files.len());
                 break;
             }
         }
