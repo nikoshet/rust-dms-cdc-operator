@@ -19,11 +19,10 @@ aws-sdk-s3 = "1.21.0"
 tokio = { version = "1", features = ["full"] }
 anyhow = "1.0"
 log = "0.4.21"
-bytes = "1.6.0"
 sqlx = { version = "0.7.4", features = [
     "postgres",
     "runtime-tokio",
-    "tls-native-tls",
+    "tls-rustls",
 ] }
 colored = "2.1.0"
 polars = { version = "0.39.2", features = [
@@ -37,19 +36,13 @@ polars = { version = "0.39.2", features = [
     "strings",
 ] }
 chrono = "0.4.37"
-serde_json = { version = "1.0.115", features = [
-    "preserve_order",
-    "arbitrary_precision",
-] }
-serde = { version = "1.0.189", features = ["derive"] }
 async-trait = "0.1.79"
 rust-pgdatadiff = "0.1.4"
 indexmap = { version = "2.2.6", features = ["serde"] }
 polars-core = "0.39.2"
-polars-utils = "0.39.2"
-polars-io = "0.39.2"
 rust_decimal = "1.35.0"
 tracing = "0.1.40"
+deadpool-postgres = "0.13.2"
 
 [dev-dependencies]
 mockall = "0.12.1"
