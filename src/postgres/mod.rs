@@ -1,3 +1,4 @@
+pub mod deadpool_postgres_operator_impl;
 pub mod postgres_config;
 pub mod postgres_operator;
 pub mod postgres_operator_impl;

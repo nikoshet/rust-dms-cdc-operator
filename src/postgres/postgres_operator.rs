@@ -37,7 +37,7 @@ pub trait PostgresOperator {
         &self,
         schema_name: &str,
         table_name: &str,
-    ) -> Result<indexmap::IndexMap<String, String>, sqlx::Error>;
+    ) -> Result<indexmap::IndexMap<String, String>>;
 
     //// Get the primary key of a table.
     ///
@@ -49,11 +49,7 @@ pub trait PostgresOperator {
     /// # Returns
     ///
     /// The primary key of the table.
-    async fn get_primary_key(
-        &self,
-        table_name: &str,
-        schema_name: &str,
-    ) -> Result<Vec<String>, sqlx::Error>;
+    async fn get_primary_key(&self, table_name: &str, schema_name: &str) -> Result<Vec<String>>;
 
     /// Create a schema in the target database.
     ///
@@ -64,7 +60,7 @@ pub trait PostgresOperator {
     /// # Returns
     ///
     /// A Result indicating success or failure.
-    async fn create_schema(&self, schema_name: &str) -> Result<(), sqlx::Error>;
+    async fn create_schema(&self, schema_name: &str) -> Result<()>;
 
     /// Create a table in the target database.
     ///
@@ -84,7 +80,7 @@ pub trait PostgresOperator {
         primary_key: &[String],
         schema_name: &str,
         table_name: &str,
-    ) -> Result<(), sqlx::Error>;
+    ) -> Result<()>;
 
     /// Get the tables in a schema.
     ///
@@ -104,7 +100,7 @@ pub trait PostgresOperator {
         included_tables: &[String],
         excluded_tables: &[String],
         table_mode: &TableMode,
-    ) -> Result<Vec<String>, sqlx::Error>;
+    ) -> Result<Vec<String>>;
 
     /// Insert a DataFrame into the target database.
     ///
@@ -152,7 +148,7 @@ pub trait PostgresOperator {
     /// # Returns
     ///
     /// A Result indicating success or failure.
-    async fn drop_schema(&self, schema_name: &str) -> Result<(), sqlx::Error>;
+    async fn drop_schema(&self, schema_name: &str) -> Result<()>;
 
     /// Close the connection pool.
     ///

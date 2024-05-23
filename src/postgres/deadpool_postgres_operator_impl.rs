@@ -1,15 +1,15 @@
 use anyhow::Result;
 use async_trait::async_trait;
+use deadpool_postgres::{GenericClient, Pool};
 use indexmap::IndexMap;
-use log::debug;
+use log::{debug, error};
 use polars::prelude::*;
 
 use polars_core::export::num::ToPrimitive;
 
-use sqlx::{Pool, Postgres, Row};
 use std::{fmt::Display, time::Instant};
 
-use tracing::{info, instrument};
+use tracing::info;
 use TableQuery::*;
 
 pub(crate) use super::postgres_operator::PostgresOperator;
@@ -36,30 +36,31 @@ impl Display for ColumnDataType {
     }
 }
 
-pub struct PostgresOperatorImpl {
-    db_client: Pool<Postgres>,
+pub struct DeadpoolPostgresOperatorImpl {
+    db_client: Pool,
 }
 
-impl PostgresOperatorImpl {
-    pub fn new(db_client: Pool<Postgres>) -> Self {
+impl DeadpoolPostgresOperatorImpl {
+    pub fn new(db_client: Pool) -> Self {
         Self { db_client }
     }
 }
 
 #[async_trait]
-impl PostgresOperator for PostgresOperatorImpl {
+impl PostgresOperator for DeadpoolPostgresOperatorImpl {
     async fn get_table_columns(
         &self,
         schema_name: &str,
         table_name: &str,
     ) -> Result<IndexMap<String, String>> {
-        let pg_pool = self.db_client.clone();
-
         // Prepare the query to get all columns for a table
         let query = FindAllColumns(schema_name.to_string(), table_name.to_string());
 
         // Fetch columns for the table
-        let rows = sqlx::query(&query.to_string()).fetch_all(&pg_pool).await?;
+        let client = self.db_client.get().await?;
+        let stmt = client.prepare_cached(&query.to_string()).await?;
+
+        let rows = client.query(&stmt, &[]).await?;
         let mut res = IndexMap::new();
         for row in rows {
             let column_name: String = row.get("column_name");
@@ -75,15 +76,13 @@ impl PostgresOperator for PostgresOperatorImpl {
     }
 
     async fn get_primary_key(&self, table_name: &str, schema_name: &str) -> Result<Vec<String>> {
-        let pg_pool = self.db_client.clone();
-
         // Prepare the query to get the primary key for a table
         let query = FindPrimaryKey(table_name.to_string(), schema_name.to_string());
         // Fetch the primary key for the table
-        let row = sqlx::query(&query.to_string())
-            .fetch_all(&pg_pool)
-            .await
-            .unwrap_or(vec![]);
+        let client = self.db_client.get().await?;
+        let stmt = client.prepare_cached(&query.to_string()).await?;
+
+        let row = client.query(&stmt, &[]).await.unwrap_or(vec![]);
 
         // Map query results to [Vec<String>]
         let primary_key_list = row
@@ -95,12 +94,12 @@ impl PostgresOperator for PostgresOperatorImpl {
     }
 
     async fn create_schema(&self, schema_name: &str) -> Result<()> {
-        let pg_pool = self.db_client.clone();
-
         // Prepare the query to create a schema
         let query = CreateSchema(schema_name.to_string());
-        sqlx::query(&query.to_string())
-            .execute(&pg_pool)
+
+        let client = self.db_client.get().await?;
+        client
+            .execute(&query.to_string(), &[])
             .await
             .expect("Failed to create schema");
 
@@ -114,8 +113,6 @@ impl PostgresOperator for PostgresOperatorImpl {
         excluded_tables: &[String],
         table_mode: &TableMode,
     ) -> Result<Vec<String>> {
-        let pg_pool = self.db_client.clone();
-
         let subquery = match table_mode {
             TableMode::IncludeTables => {
                 format!(
@@ -141,8 +138,11 @@ impl PostgresOperator for PostgresOperatorImpl {
         };
 
         let query = FindTablesForSchema(schema_name.to_string(), subquery);
-        let rows = sqlx::query(&query.to_string())
-            .fetch_all(&pg_pool)
+
+        let client = self.db_client.get().await?;
+        let stmt = client.prepare_cached(&query.to_string()).await?;
+        let rows = client
+            .query(&stmt, &[])
             .await
             .expect("Failed to fetch tables");
 
@@ -160,8 +160,6 @@ impl PostgresOperator for PostgresOperatorImpl {
         schema_name: &str,
         table_name: &str,
     ) -> Result<()> {
-        let pg_pool = self.db_client.clone();
-
         // Prepare the query to create a table
         let query = CreateTable(
             schema_name.to_string(),
@@ -169,8 +167,10 @@ impl PostgresOperator for PostgresOperatorImpl {
             column_data_types.clone(),
             primary_keys.join(","),
         );
-        sqlx::query(&query.to_string())
-            .execute(&pg_pool)
+
+        let client = self.db_client.get().await?;
+        client
+            .execute(&query.to_string(), &[])
             .await
             .expect("Failed to create table");
 
@@ -178,26 +178,23 @@ impl PostgresOperator for PostgresOperatorImpl {
     }
 
     async fn drop_schema(&self, schema_name: &str) -> Result<()> {
-        let pg_pool = self.db_client.clone();
-
         // Prepare the query to drop a schema
         let query = DropSchema(schema_name.to_string());
-        sqlx::query(&query.to_string())
-            .execute(&pg_pool)
+
+        let client = self.db_client.get().await?;
+        client
+            .execute(&query.to_string(), &[])
             .await
             .expect("Failed to drop schema");
 
         Ok(())
     }
 
-    #[instrument(name = "Insert data into table", skip(self, df))]
     async fn insert_dataframe_in_target_db(
         &self,
         df: &DataFrame,
         payload: &InsertDataframePayload,
     ) -> Result<()> {
-        let pg_pool = self.db_client.clone();
-
         let mut df = df.clone();
 
         // Drop the columns added by DMS
@@ -213,106 +210,69 @@ impl PostgresOperator for PostgresOperatorImpl {
 
         info!("Total DF height: {df_height}");
 
-        if df_height >= 200_000 {
-            let rows_per_df = 10_000;
-            let mut offset = 0i64;
+        let insert_by_chunk_start = Instant::now();
+        let client = self.db_client.get().await?;
+        let rows_per_df = 10_000;
+        let mut offset = 0i64;
 
-            let insert_by_chunk_start = Instant::now();
-            while offset <= df_height {
-                debug!("Inserting rows at offset: {offset}");
-                let df_chunk = df.slice(offset, rows_per_df);
-                let df_height = df_chunk.height();
-                let df_columns = df_chunk.get_columns();
+        while offset < df_height {
+            debug!("Inserting rows at offset: {offset}");
+            let df_chunk = df.slice(offset, rows_per_df);
+            let df_chunk_height = df_chunk.height();
+            let df_columns = df_chunk.get_columns();
 
-                let values = (0..df_height)
-                    .map(|row_idx| {
-                        let values = df_columns
-                            .iter()
-                            .map(|column| {
-                                let v = column.get(row_idx).unwrap();
-                                RowStruct::new(&v).displayed()
-                            })
-                            .collect::<Vec<_>>()
-                            .join(", ");
+            let values = (0..df_chunk_height)
+                .map(|row_idx| {
+                    let values = df_columns
+                        .iter()
+                        .map(|column| {
+                            let v = column.get(row_idx).unwrap();
+                            RowStruct::new(&v).displayed()
+                        })
+                        .collect::<Vec<_>>()
+                        .join(", ");
 
-                        format!("({})", values)
-                    })
-                    .collect::<Vec<String>>()
-                    .join(", ");
+                    format!("({})", values)
+                })
+                .collect::<Vec<String>>()
+                .join(", ");
 
-                let query = format!(
-                    "INSERT INTO {schema_name}.{table_name} ({fields}) VALUES {values};",
-                    schema_name = payload.schema_name,
-                    table_name = payload.table_name,
-                );
+            let query = format!(
+                "INSERT INTO {schema_name}.{table_name} ({fields}) VALUES {values}",
+                schema_name = payload.schema_name,
+                table_name = payload.table_name,
+            );
 
-                sqlx::query(&query)
-                    .execute(&pg_pool)
-                    .await
-                    .inspect_err(|e| {
-                        panic!("Failed to insert data into table: {e}");
-                    })
-                    .expect("Failed to insert data into table");
+            let insert_result = client.execute(query.as_str(), &[]).await;
 
-                offset += rows_per_df.to_i64().unwrap();
+            match insert_result {
+                Ok(_) => (),
+                Err(e) => {
+                    error!("DF height at point: {df_height}");
+                    error!("DF chunk height at point: {df_chunk_height}");
+                    error!("Offset at point: {offset}");
+                    error!("Failed to insert with query -> {}: {e}", query);
+                    error!(
+                        "Failed to insert data into table -> {}: {e}",
+                        payload.table_name
+                    );
+                }
             }
 
-            let insert_by_chunk_duration = insert_by_chunk_start.elapsed().as_millis();
-            info!("Inserting DF by chunk took: {insert_by_chunk_duration}ms");
-        } else {
-            let df_columns = df.get_columns();
-
-            let insert_by_row_start = Instant::now();
-            for row in 0..df_height {
-                debug!("Inserting rows in chunks");
-                debug!("Dataframe height: {df_height}");
-
-                // Construct the query with placeholders
-                let values_concatenation_start = Instant::now();
-                let values = df_columns
-                    .iter()
-                    .map(|column| {
-                        let v = column.get(row.try_into().unwrap()).unwrap();
-                        RowStruct::new(&v).displayed()
-                    })
-                    .collect::<Vec<_>>()
-                    .join(", ");
-                let values_concatenation_duration =
-                    values_concatenation_start.elapsed().as_millis();
-                info!("Concatenating values took: {values_concatenation_duration}ms");
-
-                let query = format!(
-                    "INSERT INTO {schema_name}.{table_name} ({fields}) VALUES ({values});",
-                    schema_name = payload.schema_name,
-                    table_name = payload.table_name,
-                );
-
-                let query_insert_by_row_start = Instant::now();
-                sqlx::query(&query)
-                    .execute(&pg_pool)
-                    .await
-                    .inspect_err(|e| {
-                        panic!("Failed to insert data into table: {e}");
-                    })
-                    .expect("Failed to insert data into table");
-                let query_insert_by_row_duration = query_insert_by_row_start.elapsed().as_millis();
-                info!("Inserting row took: {query_insert_by_row_duration}ms")
-            }
-            let insert_by_row_duration = insert_by_row_start.elapsed().as_millis();
-            info!("Inserting DF by row took: {insert_by_row_duration}ms");
+            offset += rows_per_df.to_i64().unwrap();
         }
+
+        let insert_by_chunk_duration = insert_by_chunk_start.elapsed().as_millis();
+        info!("Inserting DF by chunk took: {insert_by_chunk_duration}ms");
 
         Ok(())
     }
 
-    #[instrument(name = "Upsert data into table", skip(self, df))]
     async fn upsert_dataframe_in_target_db(
         &self,
         df: &DataFrame,
         payload: &UpsertDataframePayload,
     ) -> Result<()> {
-        let pg_pool = self.db_client.clone();
-
         let mut row_values = Vec::new();
         let mut deleted_row: bool;
 
@@ -326,6 +286,7 @@ impl PostgresOperator for PostgresOperatorImpl {
             })
             .collect::<Vec<_>>();
         let fields = column_names.join(", ");
+        let client = self.db_client.get().await?;
 
         for row in 0..df.height() {
             row_values.clear();
@@ -358,18 +319,19 @@ impl PostgresOperator for PostgresOperatorImpl {
                     payload.primary_key.clone(),
                     pk_vector.as_slice().join(","),
                 );
-
                 debug!("Query: {}", query);
-                sqlx::query(&query.to_string().replace('"', "'"))
-                    .execute(&pg_pool)
-                    .await
-                    .unwrap_or_else(|_| {
-                        panic!(
-                            "Failed to delete rows from table: {schema_name}.{table_name}",
-                            schema_name = payload.schema_name.clone(),
-                            table_name = payload.table_name.clone()
-                        )
-                    });
+
+                let stmt = client
+                    .prepare_cached(&query.to_string().replace('"', "'"))
+                    .await?;
+
+                client.query(&stmt, &[]).await.unwrap_or_else(|_| {
+                    panic!(
+                        "Failed to delete rows from table: {schema_name}.{table_name}",
+                        schema_name = payload.schema_name.clone(),
+                        table_name = payload.table_name.clone()
+                    )
+                });
 
                 deleted_row = true;
                 break;
@@ -424,8 +386,11 @@ impl PostgresOperator for PostgresOperatorImpl {
             let query = format!("{query}{on_conflict_strategy}");
 
             debug!("Query: {}", query);
-            sqlx::query(&query)
-                .execute(&pg_pool)
+
+            let client = self.db_client.get().await?;
+
+            client
+                .execute(query.as_str(), &[])
                 .await
                 .unwrap_or_else(|_| {
                     panic!(
@@ -440,6 +405,6 @@ impl PostgresOperator for PostgresOperatorImpl {
     }
 
     async fn close_connection_pool(&self) {
-        self.db_client.close().await;
+        self.db_client.close();
     }
 }
