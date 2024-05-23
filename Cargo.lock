@@ -1172,7 +1172,7 @@ dependencies = [
 
 [[package]]
 name = "dms-cdc-operator"
-version = "0.1.6"
+version = "0.1.7"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1194,7 +1194,7 @@ dependencies = [
 
 [[package]]
 name = "dms-cdc-operator-client"
-version = "0.1.6"
+version = "0.1.7"
 dependencies = [
  "anyhow",
  "aws-config",
