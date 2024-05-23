@@ -38,7 +38,7 @@ impl S3ParquetFile {
     }
 
     pub fn is_first_load_file(&self) -> bool {
-        self.is_load_file() && self.file_name.contains('1')
+        self.is_load_file() && self.file_name == "LOAD00000001"
     }
 }
 
