@@ -12,12 +12,10 @@ use dms_cdc_operator::{
         cdc_operator::CDCOperator, cdc_operator_payload::CDCOperatorPayload,
         snapshot_payload::CDCOperatorSnapshotPayload, validate_payload::CDCOperatorValidatePayload,
     },
-    dataframe::dataframe_ops::DataframeOperatorImpl,
     postgres::{
         postgres_config::PostgresConfig, postgres_operator::PostgresOperator,
         postgres_operator_impl::PostgresOperatorImpl,
     },
-    s3::s3_operator::S3OperatorImpl,
 };
 use tracing::info;
 
@@ -275,10 +273,6 @@ async fn main() -> Result<()> {
     // Create an S3 client
     info!("{}", "Creating S3 client".bold().green());
     let client = create_s3_client().await;
-    // Create an S3OperatorImpl instance
-    let s3_operator = S3OperatorImpl::new(&client);
-
-    let dataframe_operator = DataframeOperatorImpl::new(&client);
 
     let cdc_operator_snapshot_payload = CDCOperatorSnapshotPayload::new(
         cdc_operator_payload.bucket_name(),
@@ -296,11 +290,10 @@ async fn main() -> Result<()> {
     if !cdc_operator_payload.only_datadiff() {
         info!("{}", "Running snapshot...".bold().blue());
         let _ = CDCOperator::snapshot(
-            cdc_operator_snapshot_payload,
+            &cdc_operator_snapshot_payload,
             &postgres_operator,
             &target_postgres_operator,
-            s3_operator,
-            dataframe_operator,
+            &client,
         )
         .await;
     }
