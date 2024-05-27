@@ -250,7 +250,10 @@ impl PostgresOperator for PostgresOperatorImpl {
                     .execute(&pg_pool)
                     .await
                     .inspect_err(|e| {
-                        panic!("Failed to insert data into table: {e}");
+                        panic!(
+                            "Failed to insert data into table -> {}: {e}",
+                            payload.table_name
+                        );
                     })
                     .expect("Failed to insert data into table");
 
@@ -258,7 +261,7 @@ impl PostgresOperator for PostgresOperatorImpl {
             }
 
             let insert_by_chunk_duration = insert_by_chunk_start.elapsed().as_millis();
-            info!("Inserting DF by chunk took: {insert_by_chunk_duration}ms");
+            debug!("Inserting DF by chunk took: {insert_by_chunk_duration}ms");
         } else {
             let df_columns = df.get_columns();
 
@@ -279,7 +282,7 @@ impl PostgresOperator for PostgresOperatorImpl {
                     .join(", ");
                 let values_concatenation_duration =
                     values_concatenation_start.elapsed().as_millis();
-                info!("Concatenating values took: {values_concatenation_duration}ms");
+                debug!("Concatenating values took: {values_concatenation_duration}ms");
 
                 let query = format!(
                     "INSERT INTO {schema_name}.{table_name} ({fields}) VALUES ({values});",
@@ -292,14 +295,17 @@ impl PostgresOperator for PostgresOperatorImpl {
                     .execute(&pg_pool)
                     .await
                     .inspect_err(|e| {
-                        panic!("Failed to insert data into table: {e}");
+                        panic!(
+                            "Failed to insert data into table -> {}: {e}",
+                            payload.table_name
+                        );
                     })
                     .expect("Failed to insert data into table");
                 let query_insert_by_row_duration = query_insert_by_row_start.elapsed().as_millis();
-                info!("Inserting row took: {query_insert_by_row_duration}ms")
+                debug!("Inserting row took: {query_insert_by_row_duration}ms")
             }
             let insert_by_row_duration = insert_by_row_start.elapsed().as_millis();
-            info!("Inserting DF by row took: {insert_by_row_duration}ms");
+            debug!("Inserting DF by row took: {insert_by_row_duration}ms");
         }
 
         Ok(())
@@ -417,11 +423,11 @@ impl PostgresOperator for PostgresOperatorImpl {
             };
 
             let query = format!(
-                "INSERT INTO {schema_name}.{table_name} ({fields}) VALUES ({values_of_row});",
+                "INSERT INTO {schema_name}.{table_name} ({fields}) VALUES ({values_of_row})",
                 schema_name = payload.schema_name,
                 table_name = payload.table_name,
             );
-            let query = format!("{query}{on_conflict_strategy}");
+            let query = format!("{query}{on_conflict_strategy};");
 
             debug!("Query: {}", query);
             sqlx::query(&query)

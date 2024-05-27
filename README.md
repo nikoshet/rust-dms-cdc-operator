@@ -31,7 +31,7 @@ The tool provides two features for running it, which are `Inquire` and `Clap`.
 
 ### Using Clap
 ```shell
-Usage: rust-cdc-validator-client validate [OPTIONS] --bucket-name <BUCKET_NAME> --s3-prefix <S3_PREFIX> --source-postgres-url <SOURCE_POSTGRES_URL> --target-postgres-url <TARGET_POSTGRES_URL> --start-date <START_DATE>
+Usage: dms-cdc-operator-client validate [OPTIONS] --bucket-name <BUCKET_NAME> --s3-prefix <S3_PREFIX> --source-postgres-url <SOURCE_POSTGRES_URL> --target-postgres-url <TARGET_POSTGRES_URL> --start-date <START_DATE>
 
 Options:
       --bucket-name <BUCKET_NAME>
@@ -97,12 +97,12 @@ cargo clippy --all
 
 cargo build
 
-RUST_LOG=rust_cdc_validator=info,rust_pgdatadiff=info cargo run --features="with-clap" validate --bucket-name my-bucket --s3-prefix prefix/path --source-postgres-url postgres://postgres:postgres@localhost:5432/mydb1 --target-postgres-url postgres://postgres:postgres@localhost:5438/mydb --database-schema public --included-tables mytable --start-date 2024-02-14T10:00:00Z --chunk-size 100
+RUST_LOG=dms_cdc_operator=info,rust_pgdatadiff=info cargo run --features="with-clap" validate --bucket-name my-bucket --s3-prefix prefix/path --source-postgres-url postgres://postgres:postgres@localhost:5432/mydb1 --target-postgres-url postgres://postgres:postgres@localhost:5438/mydb --database-schema public --included-tables mytable --start-date 2024-02-14T10:00:00Z --chunk-size 100
 ```
 
 For more debugging, you can enable Rust related logs by exporting the following:
 ```
-export RUST_LOG=rust_cdc_validator=debug,rust_pgdatadiff=debug
+export RUST_LOG=dms_cdc_operator=debug,rust_pgdatadiff=debug
 ```
 
 

@@ -76,7 +76,11 @@ impl Display for TableQuery {
                 for (column, data_type) in column_data_types {
                     query.push_str(&format!("{} {},", column, data_type));
                 }
-                query.push_str(&format!("PRIMARY KEY ({})", primary_key));
+                if !primary_key.is_empty() {
+                    query.push_str(&format!("PRIMARY KEY ({})", primary_key));
+                } else {
+                    query.pop();
+                }
                 query.push(')');
 
                 write!(f, "{}", query)
