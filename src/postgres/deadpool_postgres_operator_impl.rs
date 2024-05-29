@@ -251,7 +251,8 @@ impl PostgresOperator for DeadpoolPostgresOperatorImpl {
                     error!("DF height at point: {df_height}");
                     error!("DF chunk height at point: {df_chunk_height}");
                     error!("Offset at point: {offset}");
-                    error!("Failed to insert with query -> {}: {e}", query);
+                    error!("Failed to insert: {e}");
+                    debug!("Query: {}", query);
                     error!(
                         "Failed to insert data into table -> {}: {e}",
                         payload.table_name
