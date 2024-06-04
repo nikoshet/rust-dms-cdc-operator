@@ -1,5 +1,7 @@
 use crate::postgres::table_mode::TableMode;
 
+use super::cdc_operator_mode::ModeValueEnum;
+
 #[allow(clippy::too_many_arguments)]
 #[derive(Debug)]
 pub struct CDCOperatorSnapshotPayload {
@@ -9,6 +11,7 @@ pub struct CDCOperatorSnapshotPayload {
     pub schema_name: String,
     pub included_tables: Vec<String>,
     pub excluded_tables: Vec<String>,
+    pub mode: ModeValueEnum,
     pub start_date: Option<String>,
     pub stop_date: Option<String>,
     pub source_postgres_url: String,
@@ -24,6 +27,7 @@ impl CDCOperatorSnapshotPayload {
         schema_name: impl Into<String>,
         included_tables: Vec<impl Into<String>>,
         excluded_tables: Vec<impl Into<String>>,
+        mode: ModeValueEnum,
         start_date: Option<String>,
         stop_date: Option<String>,
         source_postgres_url: String,
@@ -36,6 +40,7 @@ impl CDCOperatorSnapshotPayload {
             schema_name: schema_name.into(),
             included_tables: included_tables.into_iter().map(|x| x.into()).collect(),
             excluded_tables: excluded_tables.into_iter().map(|x| x.into()).collect(),
+            mode,
             start_date,
             stop_date,
             source_postgres_url,
@@ -75,6 +80,18 @@ impl CDCOperatorSnapshotPayload {
         } else {
             TableMode::AllTables
         }
+    }
+
+    pub fn mode_is_date_aware(&self) -> bool {
+        self.mode == ModeValueEnum::DateAware
+    }
+
+    pub fn mode_is_absolute_path(&self) -> bool {
+        self.mode == ModeValueEnum::AbsolutePath
+    }
+
+    pub fn mode_is_full_load_only(&self) -> bool {
+        self.mode == ModeValueEnum::FullLoadOnly
     }
 
     pub fn start_date(&self) -> Option<String> {
