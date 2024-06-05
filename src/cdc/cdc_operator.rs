@@ -112,18 +112,31 @@ impl CDCOperator {
                     // Get the list of Parquet files from S3
                     info!("{}", "Getting list of Parquet files from S3".bold().green());
 
-                    let load_parquet_files_payload = if let Some(start_date) =
-                    &payload.start_date
-                    {
-                        LoadParquetFilesPayload::DateAware {
+                    // Check if mode is DateAware and start_date is not None
+                    if payload.mode_is_date_aware() && payload.start_date.is_none() {
+                        panic!("start_date is required for DateAware mode");
+                    }
+
+                    let load_parquet_files_payload
+                    = if payload.mode_is_date_aware(){
+                            LoadParquetFilesPayload::DateAware {
+                                bucket_name: payload.bucket_name.clone(),
+                                s3_prefix: payload.key.clone(),
+                                database_name: payload.database_name.clone(),
+                                schema_name: payload.schema_name.clone(),
+                                table_name: table_name.to_string(),
+                                start_date: payload.start_date.clone().unwrap(),
+                                stop_date: payload
+                                    .stop_date.clone(),
+                            }
+                        }
+                    else if payload.mode_is_full_load_only() {
+                        LoadParquetFilesPayload::FullLoadOnly {
                             bucket_name: payload.bucket_name.clone(),
                             s3_prefix: payload.key.clone(),
-                            database_name: payload.database_name.clone(),
-                            schema_name: payload.schema_name.clone(),
-                            table_name: table_name.to_string(),
-                            start_date: start_date.to_string(),
-                            stop_date: payload
-                                .stop_date.clone(),
+                                database_name: payload.database_name.clone(),
+                                schema_name: payload.schema_name.clone(),
+                                table_name: table_name.to_string(),
                         }
                     } else {
                         LoadParquetFilesPayload::AbsolutePath(payload.key.clone())

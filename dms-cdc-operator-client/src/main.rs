@@ -9,8 +9,9 @@ use inquire::{Confirm, Text};
 use clap::{Parser, Subcommand};
 use dms_cdc_operator::{
     cdc::{
-        cdc_operator::CDCOperator, cdc_operator_payload::CDCOperatorPayload,
-        snapshot_payload::CDCOperatorSnapshotPayload, validate_payload::CDCOperatorValidatePayload,
+        cdc_operator::CDCOperator, cdc_operator_mode::ModeValueEnum,
+        cdc_operator_payload::CDCOperatorPayload, snapshot_payload::CDCOperatorSnapshotPayload,
+        validate_payload::CDCOperatorValidatePayload,
     },
     postgres::{
         postgres_config::PostgresConfig, postgres_operator::PostgresOperator,
@@ -56,10 +57,17 @@ enum Commands {
         /// List of tables to exclude for validatation against S3 files
         #[arg(long, value_delimiter = ',', num_args = 0.., required = false, conflicts_with("included_tables"))]
         excluded_tables: Vec<String>,
+        /// Mode to load Parquet files
+        /// Example: DateAware
+        /// Example: AbsolutePath
+        /// Example: FullLoadOnly
+        #[arg(long, required = false, default_value = "date-aware")]
+        #[clap(value_enum)]
+        mode: ModeValueEnum,
         /// Start date to filter the Parquet files
         /// Example: 2024-02-14T10:00:00Z
-        #[arg(long, required = true, default_value = "2024-02-14T10:00:00Z")]
-        start_date: String,
+        #[arg(long, required = false)]
+        start_date: Option<String>,
         /// Stop date to filter the Parquet files
         /// Example: 2024-02-14T10:00:00Z
         #[arg(long, required = false)]
@@ -104,6 +112,7 @@ fn main_clap() -> Result<CDCOperatorPayload> {
             database_schema,
             included_tables,
             excluded_tables,
+            mode,
             start_date,
             stop_date,
             chunk_size,
@@ -120,6 +129,7 @@ fn main_clap() -> Result<CDCOperatorPayload> {
                 database_schema,
                 included_tables,
                 excluded_tables,
+                mode,
                 start_date,
                 stop_date,
                 chunk_size,
@@ -175,8 +185,19 @@ fn main_inquire() -> Result<CDCOperatorPayload> {
         )
         .prompt()?;
 
+    let mode = Text::new("Mode")
+        .with_default("DateAware")
+        .with_help_message("Enter the mode to load Parquet files")
+        .prompt()?;
+    let mode = match mode.as_str() {
+        "DateAware" => ModeValueEnum::DateAware,
+        "AbsolutePath" => ModeValueEnum::AbsolutePath,
+        "FullLoadOnly" => ModeValueEnum::FullLoadOnly,
+        _ => ModeValueEnum::DateAware,
+    };
+
     let start_date = Text::new("Start date")
-        .with_default("2024-01-01T12:00:00Z")
+        .with_default("")
         .with_help_message("Enter the start date to filter the Parquet files")
         .prompt()?;
 
@@ -218,7 +239,12 @@ fn main_inquire() -> Result<CDCOperatorPayload> {
         database_schema,
         included_tables.split_whitespace().collect(),
         excluded_tables.split_whitespace().collect(),
-        start_date,
+        mode,
+        if start_date.is_empty() {
+            None
+        } else {
+            Some(start_date)
+        },
         if stop_date.is_empty() {
             None
         } else {
@@ -281,7 +307,8 @@ async fn main() -> Result<()> {
         cdc_operator_payload.schema_name(),
         cdc_operator_payload.included_tables().to_vec(),
         cdc_operator_payload.excluded_tables().to_vec(),
-        Some(cdc_operator_payload.start_date().to_string()),
+        cdc_operator_payload.mode(),
+        cdc_operator_payload.start_date().map(|x| x.to_string()),
         cdc_operator_payload.stop_date().map(|x| x.to_string()),
         cdc_operator_payload.source_postgres_url().to_string(),
         cdc_operator_payload.target_postgres_url().to_string(),

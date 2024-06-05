@@ -18,6 +18,13 @@ pub enum LoadParquetFilesPayload {
         start_date: String,
         stop_date: Option<String>,
     },
+    FullLoadOnly {
+        bucket_name: String,
+        s3_prefix: String,
+        database_name: String,
+        schema_name: String,
+        table_name: String,
+    },
     AbsolutePath(String),
 }
 
@@ -89,6 +96,24 @@ pub trait S3Operator {
         start_date: &DateTime,
         stop_date: Option<DateTime>,
     ) -> Result<Vec<S3ParquetFile>>;
+
+    /// Gets only the full load files from S3.
+    ///
+    /// # Arguments
+    ///
+    /// * `bucket_name` - The name of the S3 bucket
+    /// * `table_name` - The name of the table
+    /// * `prefix_path` - The prefix path
+    ///
+    /// # Returns
+    ///
+    /// A list of full load files.
+    async fn get_full_load_files_from_s3(
+        &self,
+        bucket_name: &str,
+        table_name: &str,
+        prefix_path: &str,
+    ) -> Result<Vec<S3ParquetFile>>;
 }
 
 pub struct S3OperatorImpl<'a> {
@@ -155,6 +180,22 @@ impl S3Operator for S3OperatorImpl<'_> {
                 let load_files_count = files_list.iter().filter(|s| s.is_load_file()).count();
                 files_list.rotate_right(load_files_count);
                 files_list
+            }
+            LoadParquetFilesPayload::FullLoadOnly {
+                bucket_name,
+                s3_prefix,
+                database_name,
+                schema_name,
+                table_name,
+            } => {
+                let prefix_path = format!(
+                    "{}/{}/{}/{}",
+                    s3_prefix, database_name, schema_name, table_name
+                );
+
+                // The returned Vec will only contain the full load files
+                self.get_full_load_files_from_s3(bucket_name, table_name, prefix_path.as_str())
+                    .await?
             }
             LoadParquetFilesPayload::AbsolutePath(absolute_path) => {
                 vec![S3ParquetFile::new(absolute_path.to_string())]
@@ -230,6 +271,46 @@ impl S3Operator for S3OperatorImpl<'_> {
             .map(|f| S3ParquetFile::new(f.to_string()))
             .collect::<Vec<_>>();
 
+        Ok(files)
+    }
+
+    async fn get_full_load_files_from_s3(
+        &self,
+        bucket_name: &str,
+        table_name: &str,
+        prefix_path: &str,
+    ) -> Result<Vec<S3ParquetFile>> {
+        let mut files: Vec<String> = Vec::new();
+
+        // The maximum no of keys returned is 1000,
+        // so we don't need to paginate with next_token
+        // since the full load files are limited
+
+        let builder = self
+            .s3_client
+            .list_objects_v2()
+            .bucket(bucket_name)
+            .prefix(format!("{}/LOAD", prefix_path));
+
+        let response = builder
+            .to_owned()
+            .send()
+            .await
+            .map_err(aws_sdk_s3::Error::from)?;
+
+        if let Some(contents) = response.contents {
+            for object in contents.clone() {
+                let file = object.key.unwrap();
+                debug!("File: {:?}", file);
+                files.push(file);
+            }
+        }
+        let files = files
+            .iter()
+            .map(|f| S3ParquetFile::new(f.to_string()))
+            .collect::<Vec<_>>();
+
+        info!("Files to process for table {table_name}: {:?}", files.len());
         Ok(files)
     }
 }

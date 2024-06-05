@@ -1,3 +1,5 @@
+use super::cdc_operator_mode::ModeValueEnum;
+
 /// Represents a CDC Operator payload that validates the data between S3 and a target database.
 pub struct CDCOperatorPayload {
     bucket_name: String,
@@ -7,7 +9,8 @@ pub struct CDCOperatorPayload {
     database_schema: String,
     included_tables: Vec<String>,
     excluded_tables: Vec<String>,
-    start_date: String,
+    mode: ModeValueEnum,
+    start_date: Option<String>,
     stop_date: Option<String>,
     chunk_size: i64,
     max_connections: u32,
@@ -28,6 +31,7 @@ impl CDCOperatorPayload {
     /// * `database_schema` - The schema of the database.
     /// * `included_tables` - The list of tables to include for validation.
     /// * `excluded_tables` - The list of tables to exclude for validation.
+    /// * `mode` - The mode of the CDC Operator.
     /// * `start_date` - Will be used to constract a key from which Amazon will start listing files after that key.
     /// * `stop_date` - Will be used to stop listing files after that date.
     /// * `chunk_size` - The chunk size for pgdatadiff validation.
@@ -48,7 +52,8 @@ impl CDCOperatorPayload {
         database_schema: impl Into<String>,
         included_tables: Vec<impl Into<String>>,
         excluded_tables: Vec<impl Into<String>>,
-        start_date: impl Into<String>,
+        mode: ModeValueEnum,
+        start_date: impl Into<Option<String>>,
         stop_date: impl Into<Option<String>>,
         chunk_size: i64,
         max_connections: u32,
@@ -68,6 +73,7 @@ impl CDCOperatorPayload {
             database_schema: database_schema.into(),
             included_tables: included_tables.into_iter().map(|t| t.into()).collect(),
             excluded_tables: excluded_tables.into_iter().map(|t| t.into()).collect(),
+            mode,
             start_date: start_date.into(),
             stop_date: stop_date.into(),
             chunk_size,
@@ -114,8 +120,12 @@ impl CDCOperatorPayload {
         &self.excluded_tables
     }
 
-    pub fn start_date(&self) -> &str {
-        &self.start_date
+    pub fn mode(&self) -> ModeValueEnum {
+        self.mode
+    }
+
+    pub fn start_date(&self) -> Option<&str> {
+        self.start_date.as_deref()
     }
 
     pub fn stop_date(&self) -> Option<&str> {
@@ -157,7 +167,8 @@ mod tests {
         let database_schema = "public";
         let included_tables = vec!["table1", "table2"];
         let excluded_tables = vec!["table3", "table4"];
-        let start_date = "2021-01-01";
+        let mode = ModeValueEnum::DateAware;
+        let start_date = Some("2021-01-01".to_string());
         let stop_date = Some("2021-01-02".to_string());
         let chunk_size = 1000;
         let max_connections = 100;
@@ -173,6 +184,7 @@ mod tests {
             database_schema,
             included_tables,
             excluded_tables,
+            mode,
             start_date,
             stop_date,
             chunk_size,
