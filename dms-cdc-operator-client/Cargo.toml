@@ -1,6 +1,6 @@
 [package]
 name = "dms-cdc-operator-client"
-version = "0.1.10"
+version = "0.1.11"
 edition = "2021"
 license = "MIT"
 description = "The dms-cdc-operator-client is a Rust-based client for comparing the state of a list of tables in an Amazon RDS database with data stored in Parquet files on Amazon S3, particularly useful for change data capture (CDC) scenarios"
@@ -18,7 +18,7 @@ inquire = { version = "0.7.4", optional = true }
 colored = "2.1.0"
 anyhow = "1.0"
 tokio = { version = "1", features = ["full"] }
-dms-cdc-operator = { version = "0.1.10", path = ".." }
+dms-cdc-operator = { version = "0.1.11", path = ".." }
 tracing-subscriber = "0.3.18"
 tracing = "0.1.40"
 aws-config = { version = "1.1.7", features = ["behavior-version-latest"] }
