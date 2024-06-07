@@ -1,6 +1,6 @@
 [package]
 name = "dms-cdc-operator"
-version = "0.1.11"
+version = "0.1.12"
 edition = "2021"
 license = "MIT"
 description = "The dms-cdc-operator is a Rust-based utility for comparing the state of a list of tables in an Amazon RDS database with data stored in Parquet files on Amazon S3, particularly useful for change data capture (CDC) scenarios"
@@ -11,19 +11,14 @@ keywords = ["postgres", "s3", "cdc", "parquet", "polars"]
 documentation = "https://docs.rs/dms-cdc-operator"
 exclude = ["script.sh"]
 
+[workspace]
+members = ["dms-cdc-operator-client"]
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
-[dependencies]
+[workspace.dependencies]
 aws-sdk-s3 = "1.21.0"
 tokio = { version = "1", features = ["full"] }
 anyhow = "1.0"
 log = "0.4.21"
-sqlx = { version = "0.7.4", features = [
-    "postgres",
-    "runtime-tokio",
-    "tls-rustls",
-] }
 colored = "2.1.0"
 polars = { version = "0.39.2", features = [
     "timezones",
@@ -42,18 +37,39 @@ indexmap = { version = "2.2.6", features = ["serde"] }
 polars-core = "0.39.2"
 rust_decimal = "1.35.0"
 tracing = "0.1.40"
+tracing-subscriber = "0.3.18"
 deadpool-postgres = "0.14.0"
 futures = "0.3.30"
 clap = "4.5.4"
+mockall = "0.12.1"
+cargo-nextest = "0.9.72"
+dms-cdc-operator = { path = ".", version = "0.1.12" }
+
+[dependencies]
+indexmap.workspace = true
+polars-core.workspace = true
+polars.workspace = true
+tokio.workspace = true
+anyhow.workspace = true
+aws-sdk-s3.workspace = true
+log.workspace = true
+colored.workspace = true
+chrono.workspace = true
+async-trait.workspace = true
+rust-pgdatadiff.workspace = true
+rust_decimal.workspace = true
+tracing.workspace = true
+deadpool-postgres.workspace = true
+futures.workspace = true
+clap.workspace = true
+tracing-subscriber.workspace = true
 
 [dev-dependencies]
-mockall = "0.12.1"
+mockall.workspace = true
+cargo-nextest.workspace = true
 
 [lib]
 test = true
 edition = "2021"
 crate-type = ["lib"]
 name = "dms_cdc_operator"
-
-[workspace]
-members = ["dms-cdc-operator-client"]
