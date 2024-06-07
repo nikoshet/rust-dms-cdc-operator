@@ -1,6 +1,6 @@
 [package]
 name = "dms-cdc-operator-client"
-version = "0.1.11"
+version = "0.1.12"
 edition = "2021"
 license = "MIT"
 description = "The dms-cdc-operator-client is a Rust-based client for comparing the state of a list of tables in an Amazon RDS database with data stored in Parquet files on Amazon S3, particularly useful for change data capture (CDC) scenarios"
@@ -13,16 +13,16 @@ documentation = "https://docs.rs/dms-cdc-operator-client"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+colored.workspace = true
+anyhow.workspace = true
+tokio.workspace = true
+tracing-subscriber.workspace = true
+tracing.workspace = true
+aws-sdk-s3.workspace = true
+dms-cdc-operator.workspace = true
 clap = { version = "4.5.4", features = ["derive"], optional = true }
 inquire = { version = "0.7.4", optional = true }
-colored = "2.1.0"
-anyhow = "1.0"
-tokio = { version = "1", features = ["full"] }
-dms-cdc-operator = { version = "0.1.11", path = ".." }
-tracing-subscriber = "0.3.18"
-tracing = "0.1.40"
 aws-config = { version = "1.1.7", features = ["behavior-version-latest"] }
-aws-sdk-s3 = "1.21.0"
 
 [features]
 default = ["with-inquire"]

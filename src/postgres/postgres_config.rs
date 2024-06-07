@@ -1,5 +1,4 @@
-use sqlx::postgres::PgPoolOptions;
-use sqlx::PgPool;
+use deadpool_postgres::{tokio_postgres::NoTls, Config, Pool, Runtime};
 
 #[allow(dead_code)]
 /// Represents a Postgres config that connects to a Postgres database.
@@ -49,14 +48,13 @@ impl PostgresConfig {
     /// # Returns
     ///
     /// A connection pool to the Postgres database.
-    pub async fn connect_to_postgres(&self) -> PgPool {
+    pub async fn connect_to_postgres(&self) -> Pool {
         let connection_string = self.postgres_url.to_string();
-        let max_connections = self.max_connections;
-        PgPoolOptions::new()
-            .max_connections(max_connections)
-            .connect(&connection_string)
-            .await
-            .expect("Failed to connect to DB")
+        let max_connections: usize = self.max_connections as usize;
+        let mut cfg = Config::new();
+        cfg.url = Some(connection_string);
+        cfg.pool = Some(deadpool_postgres::PoolConfig::new(max_connections));
+        cfg.create_pool(Some(Runtime::Tokio1), NoTls).unwrap()
     }
 
     /// Returns the connection string.
