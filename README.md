@@ -1,4 +1,28 @@
-# Rust-DMS-CDC-Operator
+<h1 align="center">DMS-CDC-Operator</h1>
+<div align="center">
+ <strong>
+   A Rust 🦀 tool for comparing Amazon RDS tables with Parquet files on Amazon S3, useful for change data capture (CDC)
+ </strong>
+</div>
+
+<br />
+
+<div align="center">
+  <!-- Github Actions -->
+  <a href="https://github.com/nikoshet/rust-dms-cdc-operator/actions/workflows/ci.yaml?query=branch%3Amain">
+    <img src="https://img.shields.io/github/actions/workflow/status/nikoshet/rust-dms-cdc-operator/ci.yaml?branch=main&style=flat-square" alt="actions status" /></a>
+  <!-- Version -->
+  <a href="https://crates.io/crates/dms-cdc-operator">
+    <img src="https://img.shields.io/crates/v/dms-cdc-operator.svg?style=flat-square"
+    alt="Crates.io version" /></a>
+  <!-- Docs -->
+  <a href="https://docs.rs/dms-cdc-operator">
+  <img src="https://img.shields.io/badge/docs-latest-blue.svg?style=flat-square" alt="docs.rs docs" /></a>
+  <!-- Downloads -->
+  <a href="https://crates.io/crates/dms-cdc-operator">
+    <img src="https://img.shields.io/crates/d/dms-cdc-operator.svg?style=flat-square" alt="Download" />
+  </a>
+</div>
 
 ## Overview
 
@@ -17,7 +41,7 @@ The `rust-dms-cdc-operator` is a Rust-based tool that compares tables in an Amaz
 ## Prerequisites
 
 - Your source DB is a PostgreSQL
-- You have a running AWS DMS task in FULL LOAD + CDC Mode
+- You have a running AWS DMS task in FULL LOAD (or FULL LOAD + CDC) Mode
 - The target of the task is AWS S3 with:
     - Parquet formatted files
     - date-based folder partitioning
@@ -31,7 +55,7 @@ The tool provides two features for running it, which are `Inquire` and `Clap`.
 
 ### Using Clap
 ```shell
-Usage: dms-cdc-operator-client validate [OPTIONS] --bucket-name <BUCKET_NAME> --s3-prefix <S3_PREFIX> --source-postgres-url <SOURCE_POSTGRES_URL> --target-postgres-url <TARGET_POSTGRES_URL> --start-date <START_DATE>
+Usage: dms-cdc-operator-client validate [OPTIONS] --bucket-name <BUCKET_NAME> --s3-prefix <S3_PREFIX> --source-postgres-url <SOURCE_POSTGRES_URL> --target-postgres-url <TARGET_POSTGRES_URL>
 
 Options:
       --bucket-name <BUCKET_NAME>
@@ -48,8 +72,10 @@ Options:
           List of tables to include for validatation against S3 files
       --excluded-tables [<EXCLUDED_TABLES>...]
           List of tables to exclude for validatation against S3 files
+      --mode <MODE>
+          Mode to load Parquet files Example: DateAware Example: AbsolutePath Example: FullLoadOnly [default: date-aware] [possible values: date-aware, absolute-path, full-load-only]
       --start-date <START_DATE>
-          Start date to filter the Parquet files Example: 2024-02-14T10:00:00Z [default: 2024-02-14T10:00:00Z]
+          Start date to filter the Parquet files Example: 2024-02-14T10:00:00Z
       --stop-date <STOP_DATE>
           Stop date to filter the Parquet files Example: 2024-02-14T10:00:00Z
       --chunk-size <CHUNK_SIZE>
