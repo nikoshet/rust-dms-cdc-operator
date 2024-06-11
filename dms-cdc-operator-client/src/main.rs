@@ -97,6 +97,12 @@ enum Commands {
             conflicts_with("only_datadiff")
         )]
         only_snapshot: bool,
+        /// Accept invalid TLS certificates for the first database
+        #[arg(long, default_value_t = false, required = false)]
+        accept_invalid_certs_first_db: bool,
+        /// Accept invalid TLS certificates for the second database
+        #[arg(long, default_value_t = false, required = false)]
+        accept_invalid_certs_second_db: bool,
     },
 }
 
@@ -120,6 +126,8 @@ fn main_clap() -> Result<CDCOperatorPayload> {
             start_position,
             only_datadiff,
             only_snapshot,
+            accept_invalid_certs_first_db,
+            accept_invalid_certs_second_db,
         } => {
             let payload = CDCOperatorPayload::new(
                 bucket_name,
@@ -137,6 +145,8 @@ fn main_clap() -> Result<CDCOperatorPayload> {
                 start_position,
                 only_datadiff,
                 only_snapshot,
+                accept_invalid_certs_first_db,
+                accept_invalid_certs_second_db,
             );
 
             Ok(payload)
@@ -231,6 +241,18 @@ fn main_inquire() -> Result<CDCOperatorPayload> {
         .with_help_message("Take only a snapshot from S3 to target DB (no data comparison)")
         .prompt()?;
 
+    let accept_invalid_certs_first_db =
+        Confirm::new("Accept invalid TLS certificates for the first database")
+            .with_default(false)
+            .with_help_message("Accept invalid TLS certificates for the first database")
+            .prompt()?;
+
+    let accept_invalid_certs_second_db =
+        Confirm::new("Accept invalid TLS certificates for the second database")
+            .with_default(false)
+            .with_help_message("Accept invalid TLS certificates for the second database")
+            .prompt()?;
+
     let payload = CDCOperatorPayload::new(
         bucket_name,
         s3_prefix,
@@ -255,6 +277,8 @@ fn main_inquire() -> Result<CDCOperatorPayload> {
         start_position.parse::<i64>().unwrap(),
         only_datadiff,
         only_snapshot,
+        accept_invalid_certs_first_db,
+        accept_invalid_certs_second_db,
     );
 
     Ok(payload)
@@ -282,7 +306,9 @@ async fn main() -> Result<()> {
         cdc_operator_payload.database_name(),
         cdc_operator_payload.max_connections(),
     );
-    let pg_pool = db_client.connect_to_postgres().await;
+    let pg_pool = db_client
+        .connect_to_postgres(cdc_operator_payload.accept_invalid_certs_first_db())
+        .await;
     // Create a PostgresOperatorImpl instance
     let postgres_operator = PostgresOperatorImpl::new(pg_pool);
 
@@ -292,7 +318,9 @@ async fn main() -> Result<()> {
         "public",
         cdc_operator_payload.max_connections(),
     );
-    let target_pg_pool = target_db_client.connect_to_postgres().await;
+    let target_pg_pool = target_db_client
+        .connect_to_postgres(cdc_operator_payload.accept_invalid_certs_second_db())
+        .await;
     // Create a PostgresOperatorImpl instance for the target database
     let target_postgres_operator = PostgresOperatorImpl::new(target_pg_pool);
 
@@ -338,6 +366,8 @@ async fn main() -> Result<()> {
         cdc_operator_payload.schema_name(),
         cdc_operator_payload.chunk_size(),
         cdc_operator_payload.start_position(),
+        cdc_operator_payload.accept_invalid_certs_first_db(),
+        cdc_operator_payload.accept_invalid_certs_second_db(),
     );
 
     let _ = CDCOperator::validate(cdc_operator_validate_payload).await;

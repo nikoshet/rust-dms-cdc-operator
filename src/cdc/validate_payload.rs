@@ -6,9 +6,12 @@ pub struct CDCOperatorValidatePayload {
     pub schema_name: String,
     pub chunk_size: i64,
     pub start_position: i64,
+    pub accept_invalid_certs_first_db: bool,
+    pub accept_invalid_certs_second_db: bool,
 }
 
 impl CDCOperatorValidatePayload {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         source_postgres_url: impl Into<String>,
         target_postgres_url: impl Into<String>,
@@ -17,6 +20,8 @@ impl CDCOperatorValidatePayload {
         schema_name: impl Into<String>,
         chunk_size: i64,
         start_position: i64,
+        accept_invalid_certs_first_db: bool,
+        accept_invalid_certs_second_db: bool,
     ) -> Self {
         CDCOperatorValidatePayload {
             source_postgres_url: source_postgres_url.into(),
@@ -26,6 +31,8 @@ impl CDCOperatorValidatePayload {
             schema_name: schema_name.into(),
             chunk_size,
             start_position,
+            accept_invalid_certs_first_db,
+            accept_invalid_certs_second_db,
         }
     }
 
@@ -55,5 +62,13 @@ impl CDCOperatorValidatePayload {
 
     pub fn start_position(&self) -> i64 {
         self.start_position
+    }
+
+    pub fn accept_invalid_certs_first_db(&self) -> bool {
+        self.accept_invalid_certs_first_db
+    }
+
+    pub fn accept_invalid_certs_second_db(&self) -> bool {
+        self.accept_invalid_certs_second_db
     }
 }

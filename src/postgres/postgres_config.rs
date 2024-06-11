@@ -48,13 +48,34 @@ impl PostgresConfig {
     /// # Returns
     ///
     /// A connection pool to the Postgres database.
-    pub async fn connect_to_postgres(&self) -> Pool {
+    pub async fn connect_to_postgres(&self, accept_invalid_certs: bool) -> Pool {
         let connection_string = self.postgres_url.to_string();
         let max_connections: usize = self.max_connections as usize;
         let mut cfg = Config::new();
         cfg.url = Some(connection_string);
         cfg.pool = Some(deadpool_postgres::PoolConfig::new(max_connections));
-        cfg.create_pool(Some(Runtime::Tokio1), NoTls).unwrap()
+
+        let tls_connector = if accept_invalid_certs {
+            use native_tls::TlsConnector;
+            use postgres_native_tls::MakeTlsConnector;
+
+            let tls_connector = TlsConnector::builder()
+                .danger_accept_invalid_certs(true)
+                .danger_accept_invalid_hostnames(true)
+                .build()
+                .unwrap();
+
+            Some(MakeTlsConnector::new(tls_connector))
+        } else {
+            None
+        };
+
+        if accept_invalid_certs {
+            cfg.create_pool(Some(Runtime::Tokio1), tls_connector.clone().unwrap())
+                .unwrap()
+        } else {
+            cfg.create_pool(Some(Runtime::Tokio1), NoTls).unwrap()
+        }
     }
 
     /// Returns the connection string.
