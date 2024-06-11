@@ -54,7 +54,6 @@ In order to use the tool as a client, you can use `cargo`.
 The tool provides two features for running it, which are `Inquire` and `Clap`.
 
 ### Using Clap
-```shell
 Usage: dms-cdc-operator-client validate [OPTIONS] --bucket-name <BUCKET_NAME> --s3-prefix <S3_PREFIX> --source-postgres-url <SOURCE_POSTGRES_URL> --target-postgres-url <TARGET_POSTGRES_URL>
 
 Options:
@@ -88,6 +87,10 @@ Options:
           Run only the datadiff
       --only-snapshot
           Take only a snapshot from S3 to target DB
+      --accept-invalid-certs-first-db
+          Accept invalid TLS certificates for the first database
+      --accept-invalid-certs-second-db
+          Accept invalid TLS certificates for the second database
   -h, --help
           Print help
   -V, --version

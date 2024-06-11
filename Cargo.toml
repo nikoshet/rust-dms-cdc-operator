@@ -1,6 +1,6 @@
 [package]
 name = "dms-cdc-operator"
-version = "0.1.12"
+version = "0.1.13"
 edition = "2021"
 license = "MIT"
 description = "The dms-cdc-operator is a Rust-based utility for comparing the state of a list of tables in an Amazon RDS database with data stored in Parquet files on Amazon S3, particularly useful for change data capture (CDC) scenarios"
@@ -20,7 +20,7 @@ tokio = { version = "1", features = ["full"] }
 anyhow = "1.0"
 log = "0.4.21"
 colored = "2.1.0"
-polars = { version = "0.39.2", features = [
+polars = { version = "0.40.0", features = [
     "timezones",
     "json",
     "lazy",
@@ -32,9 +32,9 @@ polars = { version = "0.39.2", features = [
 ] }
 chrono = "0.4.37"
 async-trait = "0.1.79"
-rust-pgdatadiff = "0.1.4"
+rust-pgdatadiff = "0.1.6"
 indexmap = { version = "2.2.6", features = ["serde"] }
-polars-core = "0.39.2"
+polars-core = "0.40.0"
 rust_decimal = "1.35.0"
 tracing = "0.1.40"
 tracing-subscriber = "0.3.18"
@@ -44,6 +44,8 @@ clap = "4.5.4"
 mockall = "0.12.1"
 cargo-nextest = "0.9.72"
 dms-cdc-operator = { path = ".", version = "0.1.12" }
+native-tls = "0.2.12"
+postgres-native-tls = "0.5.0"
 
 [dependencies]
 indexmap.workspace = true
@@ -63,6 +65,8 @@ deadpool-postgres.workspace = true
 futures.workspace = true
 clap.workspace = true
 tracing-subscriber.workspace = true
+postgres-native-tls.workspace = true
+native-tls.workspace = true
 
 [dev-dependencies]
 mockall.workspace = true

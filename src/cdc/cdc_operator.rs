@@ -276,6 +276,8 @@ impl CDCOperator {
             cdc_operator_validate_payload.included_tables().to_vec(),
             cdc_operator_validate_payload.excluded_tables().to_vec(),
             cdc_operator_validate_payload.schema_name(),
+            cdc_operator_validate_payload.accept_invalid_certs_first_db(),
+            cdc_operator_validate_payload.accept_invalid_certs_second_db(),
         );
         let diff_result = Differ::diff_dbs(payload).await;
         if diff_result.is_err() {

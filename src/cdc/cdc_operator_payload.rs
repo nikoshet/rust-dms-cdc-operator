@@ -17,6 +17,8 @@ pub struct CDCOperatorPayload {
     start_position: i64,
     only_datadiff: bool,
     only_snapshot: bool,
+    accept_invalid_certs_first_db: bool,
+    accept_invalid_certs_second_db: bool,
 }
 
 impl CDCOperatorPayload {
@@ -39,6 +41,8 @@ impl CDCOperatorPayload {
     /// * `start_position` - The start position for pgdatadiff validation.
     /// * `only_datadiff` - Whether to only validate the data difference.
     /// * `only_snapshot` - Whether to only take a snapshot and skip validation.
+    /// * `accept_invalid_certs_first_db` - Whether to accept invalid certificates for the first database.
+    /// * `accept_invalid_certs_second_db` - Whether to accept invalid certificates for the second database.
     ///
     /// # Returns
     ///
@@ -60,6 +64,8 @@ impl CDCOperatorPayload {
         start_position: i64,
         only_datadiff: bool,
         only_snapshot: bool,
+        accept_invalid_certs_first_db: bool,
+        accept_invalid_certs_second_db: bool,
     ) -> Self {
         if only_datadiff && only_snapshot {
             panic!("Cannot run both only_datadiff and only_snapshot at the same time");
@@ -81,6 +87,8 @@ impl CDCOperatorPayload {
             start_position,
             only_datadiff,
             only_snapshot,
+            accept_invalid_certs_first_db,
+            accept_invalid_certs_second_db,
         }
     }
 
@@ -151,6 +159,14 @@ impl CDCOperatorPayload {
     pub fn only_snapshot(&self) -> bool {
         self.only_snapshot
     }
+
+    pub fn accept_invalid_certs_first_db(&self) -> bool {
+        self.accept_invalid_certs_first_db
+    }
+
+    pub fn accept_invalid_certs_second_db(&self) -> bool {
+        self.accept_invalid_certs_second_db
+    }
 }
 
 #[cfg(test)]
@@ -175,6 +191,8 @@ mod tests {
         let start_position = 0;
         let only_datadiff = true;
         let only_snapshot = true;
+        let accept_invalid_certs_first_db = false;
+        let accept_invalid_certs_second_db = false;
 
         let _validator = CDCOperatorPayload::new(
             bucket_name,
@@ -192,6 +210,8 @@ mod tests {
             start_position,
             only_datadiff,
             only_snapshot,
+            accept_invalid_certs_first_db,
+            accept_invalid_certs_second_db,
         );
     }
 }
