@@ -13,6 +13,7 @@ pub struct CreateDataframePayload {
     pub database_name: String,
     pub schema_name: String,
     pub table_name: String,
+    pub override_table_name: Option<String>
 }
 
 #[cfg_attr(test, automock)]
@@ -29,7 +30,7 @@ pub trait DataframeOperator {
     /// A DataFrame.
     async fn create_dataframe_from_parquet_file(
         &self,
-        payload: &CreateDataframePayload,
+        payload: &mut CreateDataframePayload,
     ) -> Result<Option<polars::prelude::DataFrame>>;
 }
 
@@ -47,7 +48,7 @@ impl<'a> DataframeOperatorImpl<'a> {
 impl DataframeOperator for DataframeOperatorImpl<'_> {
     async fn create_dataframe_from_parquet_file(
         &self,
-        payload: &CreateDataframePayload,
+        payload: &mut CreateDataframePayload,
     ) -> Result<Option<polars::prelude::DataFrame>> {
         // If we used LazyFrame, we would have an issue with tokio, since we should have to block on the tokio runtime untill the
         // result is ready with .collect(). To avoid this, we use the ParquetReader, which is a synchronous reader.
@@ -103,16 +104,17 @@ mod tests {
             .expect_create_dataframe_from_parquet_file()
             .returning(|_| Ok(Some(DataFrame::empty())));
 
-        let create_dataframe_payload = CreateDataframePayload {
+        let mut create_dataframe_payload = CreateDataframePayload {
             bucket_name: "bucket_name".to_string(),
             key: "key".to_string(),
             database_name: "database_name".to_string(),
             schema_name: "schema_name".to_string(),
             table_name: "table_name".to_string(),
+            override_table_name: None,
         };
 
         let df = dataframe_operator
-            .create_dataframe_from_parquet_file(&create_dataframe_payload)
+            .create_dataframe_from_parquet_file(&mut create_dataframe_payload)
             .await
             .unwrap();
 

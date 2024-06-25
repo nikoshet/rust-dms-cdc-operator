@@ -150,16 +150,17 @@ impl CDCOperator {
                     info!("{}", "Reading Parquet files from S3".bold().green());
 
                     for file in &parquet_files.unwrap() {
-                        let create_dataframe_payload = CreateDataframePayload {
+                        let mut create_dataframe_payload = CreateDataframePayload {
                             bucket_name: payload.bucket_name.clone(),
                             key: file.file_name.to_string(),
                             database_name: payload.database_name.clone(),
                             schema_name: payload.schema_name.clone(),
                             table_name: table_name.clone(),
+                            override_table_name: None,
                         };
 
                         let current_df = dataframe_operator
-                            .create_dataframe_from_parquet_file(&create_dataframe_payload)
+                            .create_dataframe_from_parquet_file(&mut create_dataframe_payload)
                             .await
                             .map_err(|e| {
                                 panic!("Error reading Parquet file: {:?}", e);
