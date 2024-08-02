@@ -12,6 +12,15 @@ pub struct InsertDataframePayload {
     pub table_name: String,
 }
 
+impl InsertDataframePayload {
+    pub fn as_key(&self) -> String {
+        format!(
+            "{}:{}:{}",
+            self.database_name, self.schema_name, self.table_name
+        )
+    }
+}
+
 #[derive(Debug)]
 pub struct UpsertDataframePayload {
     pub database_name: String,
