@@ -212,7 +212,7 @@ impl PostgresOperator for PostgresOperatorImpl {
 
         let insert_by_chunk_start = Instant::now();
         let client = self.db_client.get().await?;
-        let rows_per_df = 10_000;
+        let rows_per_df = rows_per_df();
         let mut offset = 0i64;
 
         while offset < df_height {
@@ -261,6 +261,10 @@ impl PostgresOperator for PostgresOperatorImpl {
             }
 
             offset += rows_per_df.to_i64().unwrap();
+
+            if should_delay_insert() {
+                tokio::time::sleep(insert_delay()).await;
+            }
         }
 
         let insert_by_chunk_duration = insert_by_chunk_start.elapsed().as_millis();
@@ -406,4 +410,28 @@ impl PostgresOperator for PostgresOperatorImpl {
     async fn close_connection_pool(&self) {
         self.db_client.close();
     }
+}
+
+// Use Env Vars to tune Insert chunk size/speed
+fn rows_per_df() -> usize {
+    std::env::var("ROWS_PER_DF")
+        .unwrap_or(10000.to_string())
+        .parse::<usize>()
+        .unwrap()
+}
+
+fn should_delay_insert() -> bool {
+    std::env::var("DELAY_INSERT")
+        .unwrap_or("false".to_string())
+        .parse::<bool>()
+        .unwrap()
+}
+
+fn insert_delay() -> std::time::Duration {
+    std::time::Duration::from_millis(
+        std::env::var("INSERT_DELAY")
+            .unwrap_or(1000.to_string())
+            .parse::<u64>()
+            .unwrap(),
+    )
 }
