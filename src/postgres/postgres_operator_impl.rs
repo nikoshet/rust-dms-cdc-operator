@@ -2,7 +2,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use deadpool_postgres::{GenericClient, Pool};
 use indexmap::IndexMap;
-use log::{debug, error};
+use log::{debug, error, trace};
 use polars::prelude::*;
 use std::sync::LazyLock;
 
@@ -231,7 +231,7 @@ impl PostgresOperator for PostgresOperatorImpl {
         let mut offset = 0i64;
 
         while offset < df_height {
-            info!(
+            debug!(
                 "Inserting rows at offset: {offset}, table: {table}",
                 table = payload.table_name
             );
@@ -270,7 +270,7 @@ impl PostgresOperator for PostgresOperatorImpl {
                     error!("DF chunk height at point: {df_chunk_height}");
                     error!("Offset at point: {offset}");
                     error!("Failed to insert: {e}");
-                    debug!("Query: {}", query);
+                    error!("Query: {}", query);
                     error!(
                         "Failed to insert data into table -> {}: {e}",
                         payload.table_name
@@ -342,7 +342,7 @@ impl PostgresOperator for PostgresOperatorImpl {
                     payload.primary_key.clone(),
                     pk_vector.as_slice().join(","),
                 );
-                debug!("Query: {}", query);
+                trace!("Query: {}", query);
 
                 let query = query.to_string().replace('"', "'");
 
@@ -406,7 +406,7 @@ impl PostgresOperator for PostgresOperatorImpl {
             );
             let query = format!("{query}{on_conflict_strategy}");
 
-            debug!("Query: {}", query);
+            trace!("Query: {}", query);
 
             let client = self.db_client.get().await?;
 
