@@ -4,6 +4,7 @@ use deadpool_postgres::{GenericClient, Pool};
 use indexmap::IndexMap;
 use log::{debug, error};
 use polars::prelude::*;
+use std::sync::LazyLock;
 
 use polars_core::export::num::ToPrimitive;
 
@@ -20,6 +21,16 @@ use super::{
 
 use crate::postgres::postgres_row_struct::RowStruct;
 use crate::postgres::table_mode::TableMode;
+
+static INSERT_DELAYABLES: LazyLock<Vec<String>> = LazyLock::new(|| {
+    let insert_delayables: Vec<String> = std::env::var("DELAYABLE_CONFIG")
+        .unwrap_or("".to_string())
+        .split(",")
+        .map(String::from)
+        .collect();
+    info!("Delayable config: {}", insert_delayables.join(", "));
+    insert_delayables
+});
 
 /// Represents the data type of a column in a table.
 enum ColumnDataType {
@@ -212,11 +223,18 @@ impl PostgresOperator for PostgresOperatorImpl {
 
         let insert_by_chunk_start = Instant::now();
         let client = self.db_client.get().await?;
-        let rows_per_df = rows_per_df();
+
+        let rows_per_df = rows_per_df(payload);
+        let should_delay_insert = should_delay_insert(payload);
+        let insert_delay = insert_delay();
+
         let mut offset = 0i64;
 
         while offset < df_height {
-            debug!("Inserting rows at offset: {offset}");
+            info!(
+                "Inserting rows at offset: {offset}, table: {table}",
+                table = payload.table_name
+            );
             let df_chunk = df.slice(offset, rows_per_df);
             let df_chunk_height = df_chunk.height();
             let df_columns = df_chunk.get_columns();
@@ -262,8 +280,8 @@ impl PostgresOperator for PostgresOperatorImpl {
 
             offset += rows_per_df.to_i64().unwrap();
 
-            if should_delay_insert() {
-                tokio::time::sleep(insert_delay()).await;
+            if should_delay_insert {
+                tokio::time::sleep(insert_delay).await;
             }
         }
 
@@ -413,14 +431,24 @@ impl PostgresOperator for PostgresOperatorImpl {
 }
 
 // Use Env Vars to tune Insert chunk size/speed
-fn rows_per_df() -> usize {
+fn rows_per_df(payload: &InsertDataframePayload) -> usize {
+    info!(
+        "Using delayable config for payload: {payload}",
+        payload = payload.as_key()
+    );
+    if !INSERT_DELAYABLES.contains(&payload.as_key()) {
+        return 10_000;
+    }
     std::env::var("ROWS_PER_DF")
-        .unwrap_or(10000.to_string())
+        .unwrap_or(10_000.to_string())
         .parse::<usize>()
         .unwrap()
 }
 
-fn should_delay_insert() -> bool {
+fn should_delay_insert(payload: &InsertDataframePayload) -> bool {
+    if !INSERT_DELAYABLES.contains(&payload.as_key()) {
+        return false;
+    }
     std::env::var("DELAY_INSERT")
         .unwrap_or("false".to_string())
         .parse::<bool>()
