@@ -270,7 +270,6 @@ impl PostgresOperator for PostgresOperatorImpl {
                     error!("DF chunk height at point: {df_chunk_height}");
                     error!("Offset at point: {offset}");
                     error!("Failed to insert: {e}");
-                    error!("Query: {}", query);
                     error!(
                         "Failed to insert data into table -> {}: {e}",
                         payload.table_name
