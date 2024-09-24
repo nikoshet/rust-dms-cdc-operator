@@ -1,6 +1,6 @@
 [package]
 name = "dms-cdc-operator"
-version = "0.1.18"
+version = "0.1.19"
 edition = "2021"
 license = "MIT"
 description = "The dms-cdc-operator is a Rust-based utility for comparing the state of a list of tables in an Amazon RDS database with data stored in Parquet files on Amazon S3, particularly useful for change data capture (CDC) scenarios"

@@ -142,14 +142,18 @@ impl CDCOperator {
                         LoadParquetFilesPayload::AbsolutePath(payload.key.clone())
                     };
 
-                    let parquet_files = s3_operator
-                        .get_list_of_parquet_files_from_s3(&load_parquet_files_payload)
-                        .await;
-
                     // Read the Parquet files from S3
                     info!("{}", "Reading Parquet files from S3".bold().green());
 
-                    for file in &parquet_files.unwrap() {
+                    let parquet_files = s3_operator
+                        .get_list_of_parquet_files_from_s3(&load_parquet_files_payload)
+                        .await
+                        .unwrap_or_else(|_| {
+                            info!("No available Parquet files from S3 for table {} to process", table_name);
+                            Vec::new()
+                        });
+
+                    for file in &parquet_files {
                         let create_dataframe_payload = CreateDataframePayload {
                             bucket_name: payload.bucket_name.clone(),
                             key: file.file_name.to_string(),
