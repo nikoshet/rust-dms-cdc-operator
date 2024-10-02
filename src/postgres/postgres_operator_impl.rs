@@ -226,6 +226,14 @@ impl PostgresOperator for PostgresOperatorImpl {
 
         let rows_per_df = rows_per_df(payload);
         let should_delay_insert = should_delay_insert(payload);
+
+        if should_delay_insert {
+            info!(
+                "Using delayable config for payload: {payload}",
+                payload = payload.as_key()
+            );
+        }
+
         let insert_delay = insert_delay();
 
         let mut offset = 0i64;
@@ -431,10 +439,6 @@ impl PostgresOperator for PostgresOperatorImpl {
 
 // Use Env Vars to tune Insert chunk size/speed
 fn rows_per_df(payload: &InsertDataframePayload) -> usize {
-    info!(
-        "Using delayable config for payload: {payload}",
-        payload = payload.as_key()
-    );
     if !INSERT_DELAYABLES.contains(&payload.as_key()) {
         return 10_000;
     }
