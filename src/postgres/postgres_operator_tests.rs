@@ -78,7 +78,7 @@ mod tests {
             .times(1)
             .returning(|_, _| Ok(()));
 
-        let df = DataFrame::new(vec![Series::new("column1", &[1, 2, 3])]).unwrap();
+        let df = DataFrame::new(vec![Series::new("column1".into(), &[1, 2, 3]).into()]).unwrap();
         let payload = InsertDataframePayload {
             database_name: "database".to_string(),
             schema_name: "schema".to_string(),
@@ -99,7 +99,7 @@ mod tests {
             .times(1)
             .returning(|_, _| Ok(()));
 
-        let df = DataFrame::new(vec![Series::new("column1", &[1, 2, 3])]).unwrap();
+        let df = DataFrame::new(vec![Series::new("column1".into(), &[1, 2, 3]).into()]).unwrap();
         let payload = UpsertDataframePayload {
             database_name: "database".to_string(),
             schema_name: "schema".to_string(),

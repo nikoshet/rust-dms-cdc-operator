@@ -180,7 +180,7 @@ impl CDCOperator {
                                 .filter(|field| {
                                     field.name() != "Op" && field.name() != "_dms_ingestion_timestamp"
                                 })
-                                .any(|field| !source_table_columns.contains_key(field.name()));
+                                .any(|field| !source_table_columns.contains_key(field.name().as_str()));
 
                             if has_schema_diff {
                                 panic!("Schema of table is not the same as the schema of the Parquet file");

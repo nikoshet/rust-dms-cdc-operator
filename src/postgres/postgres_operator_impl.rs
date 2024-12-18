@@ -217,7 +217,7 @@ impl PostgresOperator for PostgresOperatorImpl {
             .drop_in_place("_dms_ingestion_timestamp")
             .expect("Failed to drop '_dms_ingestion_timestamp' column");
 
-        let column_names = df.get_column_names();
+        let column_names = df.get_column_names_str();
         let fields = column_names.join(", ");
 
         let df_height = df.height().to_i64().unwrap();
@@ -310,7 +310,7 @@ impl PostgresOperator for PostgresOperatorImpl {
         let mut deleted_row: bool;
 
         let column_names = df
-            .get_column_names()
+            .get_column_names_str()
             .into_iter()
             .filter(|column| {
                 let is_not_op = *column != "Op";
