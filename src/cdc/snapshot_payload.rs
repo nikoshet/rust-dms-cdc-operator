@@ -1,3 +1,5 @@
+use bon::bon;
+
 use crate::postgres::table_mode::TableMode;
 
 use super::cdc_operator_mode::ModeValueEnum;
@@ -5,21 +7,23 @@ use super::cdc_operator_mode::ModeValueEnum;
 #[allow(clippy::too_many_arguments)]
 #[derive(Debug)]
 pub struct CDCOperatorSnapshotPayload {
-    pub bucket_name: String,
-    pub key: String,
-    pub database_name: String,
-    pub schema_name: String,
-    pub included_tables: Vec<String>,
-    pub excluded_tables: Vec<String>,
-    pub mode: ModeValueEnum,
-    pub start_date: Option<String>,
-    pub stop_date: Option<String>,
-    pub source_postgres_url: String,
-    pub target_postgres_url: String,
+    bucket_name: String,
+    key: String,
+    database_name: String,
+    schema_name: String,
+    included_tables: Vec<String>,
+    excluded_tables: Vec<String>,
+    mode: ModeValueEnum,
+    start_date: Option<String>,
+    stop_date: Option<String>,
+    source_postgres_url: String,
+    target_postgres_url: String,
 }
 
+#[bon]
 impl CDCOperatorSnapshotPayload {
     #[allow(clippy::too_many_arguments)]
+    #[builder]
     pub fn new(
         bucket_name: impl Into<String>,
         key: impl Into<String>,
@@ -82,6 +86,14 @@ impl CDCOperatorSnapshotPayload {
         }
     }
 
+    pub fn start_date(&self) -> Option<String> {
+        self.start_date.clone()
+    }
+
+    pub fn stop_date(&self) -> Option<String> {
+        self.stop_date.clone()
+    }
+
     pub fn mode_is_date_aware(&self) -> bool {
         self.mode == ModeValueEnum::DateAware
     }
@@ -92,14 +104,6 @@ impl CDCOperatorSnapshotPayload {
 
     pub fn mode_is_full_load_only(&self) -> bool {
         self.mode == ModeValueEnum::FullLoadOnly
-    }
-
-    pub fn start_date(&self) -> Option<String> {
-        self.start_date.clone()
-    }
-
-    pub fn stop_date(&self) -> Option<String> {
-        self.stop_date.clone()
     }
 
     pub fn source_postgres_url(&self) -> String {

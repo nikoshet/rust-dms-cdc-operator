@@ -1,3 +1,5 @@
+use bon::bon;
+
 pub struct CDCOperatorValidatePayload {
     pub source_postgres_url: String,
     pub target_postgres_url: String,
@@ -10,8 +12,10 @@ pub struct CDCOperatorValidatePayload {
     pub accept_invalid_certs_second_db: bool,
 }
 
+#[bon]
 impl CDCOperatorValidatePayload {
     #[allow(clippy::too_many_arguments)]
+    #[builder]
     pub fn new(
         source_postgres_url: impl Into<String>,
         target_postgres_url: impl Into<String>,
