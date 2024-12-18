@@ -49,7 +49,6 @@ impl CDCOperatorPayload {
     /// # Returns
     ///
     /// A new validator instance.
-    #[allow(clippy::too_many_arguments)]
     #[builder]
     pub fn new(
         bucket_name: impl Into<String>,

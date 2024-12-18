@@ -22,7 +22,6 @@ pub struct CDCOperatorSnapshotPayload {
 
 #[bon]
 impl CDCOperatorSnapshotPayload {
-    #[allow(clippy::too_many_arguments)]
     #[builder]
     pub fn new(
         bucket_name: impl Into<String>,

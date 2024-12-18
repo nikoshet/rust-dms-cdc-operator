@@ -14,7 +14,6 @@ pub struct CDCOperatorValidatePayload {
 
 #[bon]
 impl CDCOperatorValidatePayload {
-    #[allow(clippy::too_many_arguments)]
     #[builder]
     pub fn new(
         source_postgres_url: impl Into<String>,
