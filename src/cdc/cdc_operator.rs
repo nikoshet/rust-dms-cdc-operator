@@ -267,21 +267,25 @@ impl CDCOperator {
             .bold()
             .green()
         );
-        let payload = DiffPayload::new(
-            cdc_operator_validate_payload.source_postgres_url(),
-            cdc_operator_validate_payload.target_postgres_url(),
-            true,                                           //only-tables
-            false,                                          //only-sequences
-            false,                                          //only-count
-            cdc_operator_validate_payload.chunk_size(),     //chunk-size
-            cdc_operator_validate_payload.start_position(), //start-position
-            100,                                            //max-connections
-            cdc_operator_validate_payload.included_tables().to_vec(),
-            cdc_operator_validate_payload.excluded_tables().to_vec(),
-            cdc_operator_validate_payload.schema_name(),
-            cdc_operator_validate_payload.accept_invalid_certs_first_db(),
-            cdc_operator_validate_payload.accept_invalid_certs_second_db(),
-        );
+        let payload = DiffPayload::builder()
+            .first_db(cdc_operator_validate_payload.source_postgres_url())
+            .second_db(cdc_operator_validate_payload.target_postgres_url())
+            .only_tables(true)
+            .only_sequences(false)
+            .only_count(false)
+            .chunk_size(cdc_operator_validate_payload.chunk_size())
+            .start_position(cdc_operator_validate_payload.start_position())
+            .max_connections(100)
+            .include_tables(cdc_operator_validate_payload.included_tables().to_vec())
+            .exclude_tables(cdc_operator_validate_payload.excluded_tables().to_vec())
+            .schema_name(cdc_operator_validate_payload.schema_name())
+            .accept_invalid_certs_first_db(
+                cdc_operator_validate_payload.accept_invalid_certs_first_db(),
+            )
+            .accept_invalid_certs_second_db(
+                cdc_operator_validate_payload.accept_invalid_certs_second_db(),
+            )
+            .build();
         let diff_result = Differ::diff_dbs(payload).await;
         if diff_result.is_err() {
             panic!("Failed to run pgdatadiff: {:?}", diff_result.err().unwrap());
