@@ -76,7 +76,7 @@ impl CDCOperator {
                     info!("{}", "Getting table columns".bold().green());
                     let source_table_columns: indexmap::IndexMap<String, String> = source_postgres_operator
                         .get_table_columns(
-                            payload.schema_name.as_str(),
+                            payload.schema_name().as_str(),
                             table_name,
                         )
                         .await
@@ -92,7 +92,7 @@ impl CDCOperator {
                     let primary_key_list = source_postgres_operator
                         .get_primary_key(
                             table_name,
-                            payload.schema_name.as_str(),
+                            payload.schema_name().as_str(),
                         )
                         .await
                         .unwrap();
@@ -104,7 +104,7 @@ impl CDCOperator {
                         .create_table(
                             &source_table_columns,
                             primary_key_list.as_slice(),
-                            payload.schema_name.clone().as_str(),
+                            payload.schema_name().clone().as_str(),
                             table_name,
                         )
                         .await;
@@ -113,33 +113,32 @@ impl CDCOperator {
                     info!("{}", "Getting list of Parquet files from S3".bold().green());
 
                     // Check if mode is DateAware and start_date is not None
-                    if payload.mode_is_date_aware() && payload.start_date.is_none() {
+                    if payload.mode_is_date_aware() && payload.start_date().is_none() {
                         panic!("start_date is required for DateAware mode");
                     }
 
                     let load_parquet_files_payload
                     = if payload.mode_is_date_aware(){
                             LoadParquetFilesPayload::DateAware {
-                                bucket_name: payload.bucket_name.clone(),
-                                s3_prefix: payload.key.clone(),
-                                database_name: payload.database_name.clone(),
-                                schema_name: payload.schema_name.clone(),
+                                bucket_name: payload.bucket_name().clone(),
+                                s3_prefix: payload.key().clone(),
+                                database_name: payload.database_name().clone(),
+                                schema_name: payload.schema_name().clone(),
                                 table_name: table_name.to_string(),
-                                start_date: payload.start_date.clone().unwrap(),
-                                stop_date: payload
-                                    .stop_date.clone(),
+                                start_date: payload.start_date().unwrap(),
+                                stop_date: payload.stop_date(),
                             }
                         }
                     else if payload.mode_is_full_load_only() {
                         LoadParquetFilesPayload::FullLoadOnly {
-                            bucket_name: payload.bucket_name.clone(),
-                            s3_prefix: payload.key.clone(),
-                                database_name: payload.database_name.clone(),
-                                schema_name: payload.schema_name.clone(),
-                                table_name: table_name.to_string(),
+                            bucket_name: payload.bucket_name().clone(),
+                            s3_prefix: payload.key().clone(),
+                            database_name: payload.database_name().clone(),
+                            schema_name: payload.schema_name().clone(),
+                            table_name: table_name.to_string(),
                         }
                     } else {
-                        LoadParquetFilesPayload::AbsolutePath(payload.key.clone())
+                        LoadParquetFilesPayload::AbsolutePath(payload.key().clone())
                     };
 
                     // Read the Parquet files from S3
@@ -155,10 +154,10 @@ impl CDCOperator {
 
                     for file in &parquet_files {
                         let create_dataframe_payload = CreateDataframePayload {
-                            bucket_name: payload.bucket_name.clone(),
+                            bucket_name: payload.bucket_name().clone(),
                             key: file.file_name.to_string(),
-                            database_name: payload.database_name.clone(),
-                            schema_name: payload.schema_name.clone(),
+                            database_name: payload.database_name().clone(),
+                            schema_name: payload.schema_name().clone(),
                             table_name: table_name.clone(),
                         };
 
@@ -181,15 +180,15 @@ impl CDCOperator {
                                 .filter(|field| {
                                     field.name() != "Op" && field.name() != "_dms_ingestion_timestamp"
                                 })
-                                .any(|field| !source_table_columns.contains_key(field.name()));
+                                .any(|field| !source_table_columns.contains_key(field.name().as_str()));
 
                             if has_schema_diff {
                                 panic!("Schema of table is not the same as the schema of the Parquet file");
                             }
 
                             let insert_dataframe_payload = InsertDataframePayload {
-                                database_name: payload.database_name.clone(),
-                                schema_name: payload.schema_name.clone(),
+                                database_name: payload.database_name().clone(),
+                                schema_name: payload.schema_name().clone(),
                                 table_name: table_name.clone(),
                             };
 
@@ -204,8 +203,8 @@ impl CDCOperator {
                             let primary_keys = primary_key_list.clone().as_slice().join(",");
 
                             let upsert_dataframe_payload = UpsertDataframePayload {
-                                database_name: payload.database_name.clone(),
-                                schema_name: payload.schema_name.clone(),
+                                database_name: payload.database_name().clone(),
+                                schema_name: payload.schema_name().clone(),
                                 table_name: table_name.clone(),
                                 primary_key: primary_keys.clone(),
                             };
@@ -268,21 +267,25 @@ impl CDCOperator {
             .bold()
             .green()
         );
-        let payload = DiffPayload::new(
-            cdc_operator_validate_payload.source_postgres_url(),
-            cdc_operator_validate_payload.target_postgres_url(),
-            true,                                           //only-tables
-            false,                                          //only-sequences
-            false,                                          //only-count
-            cdc_operator_validate_payload.chunk_size(),     //chunk-size
-            cdc_operator_validate_payload.start_position(), //start-position
-            100,                                            //max-connections
-            cdc_operator_validate_payload.included_tables().to_vec(),
-            cdc_operator_validate_payload.excluded_tables().to_vec(),
-            cdc_operator_validate_payload.schema_name(),
-            cdc_operator_validate_payload.accept_invalid_certs_first_db(),
-            cdc_operator_validate_payload.accept_invalid_certs_second_db(),
-        );
+        let payload = DiffPayload::builder()
+            .first_db(cdc_operator_validate_payload.source_postgres_url())
+            .second_db(cdc_operator_validate_payload.target_postgres_url())
+            .only_tables(true)
+            .only_sequences(false)
+            .only_count(false)
+            .chunk_size(cdc_operator_validate_payload.chunk_size())
+            .start_position(cdc_operator_validate_payload.start_position())
+            .max_connections(100)
+            .include_tables(cdc_operator_validate_payload.included_tables().to_vec())
+            .exclude_tables(cdc_operator_validate_payload.excluded_tables().to_vec())
+            .schema_name(cdc_operator_validate_payload.schema_name())
+            .accept_invalid_certs_first_db(
+                cdc_operator_validate_payload.accept_invalid_certs_first_db(),
+            )
+            .accept_invalid_certs_second_db(
+                cdc_operator_validate_payload.accept_invalid_certs_second_db(),
+            )
+            .build();
         let diff_result = Differ::diff_dbs(payload).await;
         if diff_result.is_err() {
             panic!("Failed to run pgdatadiff: {:?}", diff_result.err().unwrap());

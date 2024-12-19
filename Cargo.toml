@@ -15,12 +15,12 @@ exclude = ["script.sh"]
 members = ["dms-cdc-operator-client"]
 
 [workspace.dependencies]
-aws-sdk-s3 = "1.21.0"
+aws-sdk-s3 = "1.66.0"
 tokio = { version = "1", features = ["full"] }
 anyhow = "1.0"
 log = "0.4.21"
-colored = "2.1.0"
-polars = { version = "0.40.0", features = [
+colored = "2.2.0"
+polars = { version = "0.45.1", features = [
     "timezones",
     "json",
     "lazy",
@@ -30,22 +30,23 @@ polars = { version = "0.40.0", features = [
     "streaming",
     "strings",
 ] }
-chrono = "0.4.37"
-async-trait = "0.1.79"
-rust-pgdatadiff = "0.1.6"
-indexmap = { version = "2.2.6", features = ["serde"] }
-polars-core = "0.40.0"
-rust_decimal = "1.35.0"
-tracing = "0.1.40"
-tracing-subscriber = "0.3.18"
+polars-core = "0.45.1"
+chrono = "0.4.39"
+async-trait = "0.1.83"
+rust-pgdatadiff = "0.1.7"
+indexmap = { version = "2.7.0", features = ["serde"] }
+rust_decimal = "1.36.0"
+tracing = "0.1.41"
+tracing-subscriber = "0.3.19"
 deadpool-postgres = "0.14.0"
-futures = "0.3.30"
-clap = "4.5.4"
-mockall = "0.12.1"
-cargo-nextest = "0.9.72"
+futures = "0.3.31"
+clap = "4.5.23"
+mockall = "0.13.1"
+cargo-nextest = "0.9.87"
 dms-cdc-operator = { path = ".", version = "0.1" }
 native-tls = "0.2.12"
 postgres-native-tls = "0.5.0"
+bon = "3.3"
 
 [dependencies]
 indexmap.workspace = true
@@ -67,6 +68,7 @@ clap.workspace = true
 tracing-subscriber.workspace = true
 postgres-native-tls.workspace = true
 native-tls.workspace = true
+bon.workspace = true
 
 [dev-dependencies]
 mockall.workspace = true

@@ -1,4 +1,5 @@
 use super::cdc_operator_mode::ModeValueEnum;
+use bon::bon;
 
 /// Represents a CDC Operator payload that validates the data between S3 and a target database.
 pub struct CDCOperatorPayload {
@@ -21,6 +22,7 @@ pub struct CDCOperatorPayload {
     accept_invalid_certs_second_db: bool,
 }
 
+#[bon]
 impl CDCOperatorPayload {
     /// Creates a new CDC Operator payload.
     ///
@@ -47,7 +49,7 @@ impl CDCOperatorPayload {
     /// # Returns
     ///
     /// A new validator instance.
-    #[allow(clippy::too_many_arguments)]
+    #[builder]
     pub fn new(
         bucket_name: impl Into<String>,
         s3_prefix: impl Into<String>,
@@ -132,12 +134,12 @@ impl CDCOperatorPayload {
         self.mode
     }
 
-    pub fn start_date(&self) -> Option<&str> {
-        self.start_date.as_deref()
+    pub fn start_date(&self) -> Option<String> {
+        self.start_date.clone()
     }
 
-    pub fn stop_date(&self) -> Option<&str> {
-        self.stop_date.as_deref()
+    pub fn stop_date(&self) -> Option<String> {
+        self.stop_date.clone()
     }
 
     pub fn chunk_size(&self) -> i64 {
@@ -194,24 +196,24 @@ mod tests {
         let accept_invalid_certs_first_db = false;
         let accept_invalid_certs_second_db = false;
 
-        let _validator = CDCOperatorPayload::new(
-            bucket_name,
-            s3_prefix,
-            source_postgres_url,
-            target_postgres_url,
-            database_schema,
-            included_tables,
-            excluded_tables,
-            mode,
-            start_date,
-            stop_date,
-            chunk_size,
-            max_connections,
-            start_position,
-            only_datadiff,
-            only_snapshot,
-            accept_invalid_certs_first_db,
-            accept_invalid_certs_second_db,
-        );
+        let _validator = CDCOperatorPayload::builder()
+            .bucket_name(bucket_name)
+            .s3_prefix(s3_prefix)
+            .source_postgres_url(source_postgres_url)
+            .target_postgres_url(target_postgres_url)
+            .database_schema(database_schema)
+            .included_tables(included_tables)
+            .excluded_tables(excluded_tables)
+            .mode(mode)
+            .start_date(start_date)
+            .stop_date(stop_date)
+            .chunk_size(chunk_size)
+            .max_connections(max_connections)
+            .start_position(start_position)
+            .only_datadiff(only_datadiff)
+            .only_snapshot(only_snapshot)
+            .accept_invalid_certs_first_db(accept_invalid_certs_first_db)
+            .accept_invalid_certs_second_db(accept_invalid_certs_second_db)
+            .build();
     }
 }

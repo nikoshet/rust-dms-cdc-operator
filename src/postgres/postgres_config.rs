@@ -1,3 +1,4 @@
+use bon::bon;
 use deadpool_postgres::{tokio_postgres::NoTls, Config, Pool, Runtime};
 
 #[allow(dead_code)]
@@ -9,6 +10,7 @@ pub struct PostgresConfig {
 }
 
 #[allow(dead_code)]
+#[bon]
 impl PostgresConfig {
     /// Creates a new Postgres config.
     ///
@@ -21,6 +23,7 @@ impl PostgresConfig {
     /// # Returns
     ///
     /// A new Postgres config instance.
+    #[builder]
     pub fn new(
         postgres_url: impl Into<String>,
         database_schema: impl Into<String>,
@@ -90,11 +93,11 @@ mod tests {
 
     #[test]
     fn test_new_postgres_config() {
-        let config = PostgresConfig::new(
-            "postgres://postgres:postgres@localhost:5432/mydb",
-            "database_schema",
-            100,
-        );
+        let config = PostgresConfig::builder()
+            .postgres_url("postgres://postgres:postgres@localhost:5432/mydb")
+            .database_schema("database_schema")
+            .max_connections(100)
+            .build();
 
         assert_eq!(
             config.postgres_url,
@@ -105,11 +108,11 @@ mod tests {
 
     #[test]
     fn test_connection_string() {
-        let config = PostgresConfig::new(
-            "postgres://postgres:postgres@localhost:5432/mydb",
-            "database_schema",
-            100,
-        );
+        let config = PostgresConfig::builder()
+            .postgres_url("postgres://postgres:postgres@localhost:5432/mydb")
+            .database_schema("database_schema")
+            .max_connections(100)
+            .build();
 
         assert_eq!(
             config.connection_string(),

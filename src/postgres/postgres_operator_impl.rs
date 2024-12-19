@@ -1,5 +1,6 @@
 use anyhow::Result;
 use async_trait::async_trait;
+use bon::bon;
 use deadpool_postgres::{GenericClient, Pool};
 use indexmap::IndexMap;
 use log::{debug, error, trace};
@@ -48,12 +49,14 @@ impl Display for ColumnDataType {
 }
 
 pub struct PostgresOperatorImpl {
-    db_client: Pool,
+    pool: Pool,
 }
 
+#[bon]
 impl PostgresOperatorImpl {
-    pub fn new(db_client: Pool) -> Self {
-        Self { db_client }
+    #[builder]
+    pub fn new(pool: Pool) -> Self {
+        Self { pool }
     }
 }
 
@@ -68,7 +71,7 @@ impl PostgresOperator for PostgresOperatorImpl {
         let query = FindAllColumns(schema_name.to_string(), table_name.to_string());
 
         // Fetch columns for the table
-        let client = self.db_client.get().await?;
+        let client = self.pool.get().await?;
 
         let rows = client.query(&query.to_string(), &[]).await?;
         let mut res = IndexMap::new();
@@ -89,7 +92,7 @@ impl PostgresOperator for PostgresOperatorImpl {
         // Prepare the query to get the primary key for a table
         let query = FindPrimaryKey(table_name.to_string(), schema_name.to_string());
         // Fetch the primary key for the table
-        let client = self.db_client.get().await?;
+        let client = self.pool.get().await?;
 
         let row = client
             .query(&query.to_string(), &[])
@@ -109,7 +112,7 @@ impl PostgresOperator for PostgresOperatorImpl {
         // Prepare the query to create a schema
         let query = CreateSchema(schema_name.to_string());
 
-        let client = self.db_client.get().await?;
+        let client = self.pool.get().await?;
         client
             .execute(&query.to_string(), &[])
             .await
@@ -151,7 +154,7 @@ impl PostgresOperator for PostgresOperatorImpl {
 
         let query = FindTablesForSchema(schema_name.to_string(), subquery);
 
-        let client = self.db_client.get().await?;
+        let client = self.pool.get().await?;
         let rows = client
             .query(&query.to_string(), &[])
             .await
@@ -179,7 +182,7 @@ impl PostgresOperator for PostgresOperatorImpl {
             primary_keys.join(","),
         );
 
-        let client = self.db_client.get().await?;
+        let client = self.pool.get().await?;
         client
             .execute(&query.to_string(), &[])
             .await
@@ -192,7 +195,7 @@ impl PostgresOperator for PostgresOperatorImpl {
         // Prepare the query to drop a schema
         let query = DropSchema(schema_name.to_string());
 
-        let client = self.db_client.get().await?;
+        let client = self.pool.get().await?;
         client
             .execute(&query.to_string(), &[])
             .await
@@ -214,7 +217,7 @@ impl PostgresOperator for PostgresOperatorImpl {
             .drop_in_place("_dms_ingestion_timestamp")
             .expect("Failed to drop '_dms_ingestion_timestamp' column");
 
-        let column_names = df.get_column_names();
+        let column_names = df.get_column_names_str();
         let fields = column_names.join(", ");
 
         let df_height = df.height().to_i64().unwrap();
@@ -222,7 +225,7 @@ impl PostgresOperator for PostgresOperatorImpl {
         info!("Total DF height: {df_height}");
 
         let insert_by_chunk_start = Instant::now();
-        let client = self.db_client.get().await?;
+        let client = self.pool.get().await?;
 
         let rows_per_df = rows_per_df(payload);
         let should_delay_insert = should_delay_insert(payload);
@@ -307,7 +310,7 @@ impl PostgresOperator for PostgresOperatorImpl {
         let mut deleted_row: bool;
 
         let column_names = df
-            .get_column_names()
+            .get_column_names_str()
             .into_iter()
             .filter(|column| {
                 let is_not_op = *column != "Op";
@@ -316,7 +319,7 @@ impl PostgresOperator for PostgresOperatorImpl {
             })
             .collect::<Vec<_>>();
         let fields = column_names.join(", ");
-        let client = self.db_client.get().await?;
+        let client = self.pool.get().await?;
 
         for row in 0..df.height() {
             row_values.clear();
@@ -415,7 +418,7 @@ impl PostgresOperator for PostgresOperatorImpl {
 
             trace!("Query: {}", query);
 
-            let client = self.db_client.get().await?;
+            let client = self.pool.get().await?;
 
             client
                 .execute(query.as_str(), &[])
@@ -433,7 +436,7 @@ impl PostgresOperator for PostgresOperatorImpl {
     }
 
     async fn close_connection_pool(&self) {
-        self.db_client.close();
+        self.pool.close();
     }
 }
 

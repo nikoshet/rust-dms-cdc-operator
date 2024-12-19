@@ -20,6 +20,16 @@ use dms_cdc_operator::{
 };
 use tracing::info;
 
+macro_rules! option_if_not_empty {
+    ($value:expr) => {
+        if $value.is_empty() {
+            None
+        } else {
+            Some($value)
+        }
+    };
+}
+
 #[cfg(feature = "with-clap")]
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -253,33 +263,25 @@ fn main_inquire() -> Result<CDCOperatorPayload> {
             .with_help_message("Accept invalid TLS certificates for the second database")
             .prompt()?;
 
-    let payload = CDCOperatorPayload::new(
-        bucket_name,
-        s3_prefix,
-        source_postgres_url,
-        target_postgres_url,
-        database_schema,
-        included_tables.split_whitespace().collect(),
-        excluded_tables.split_whitespace().collect(),
-        mode,
-        if start_date.is_empty() {
-            None
-        } else {
-            Some(start_date)
-        },
-        if stop_date.is_empty() {
-            None
-        } else {
-            Some(stop_date)
-        },
-        chunk_size.parse::<i64>().unwrap(),
-        max_connections.parse::<u32>().unwrap(),
-        start_position.parse::<i64>().unwrap(),
-        only_datadiff,
-        only_snapshot,
-        accept_invalid_certs_first_db,
-        accept_invalid_certs_second_db,
-    );
+    let payload = CDCOperatorPayload::builder()
+        .bucket_name(bucket_name)
+        .s3_prefix(s3_prefix)
+        .source_postgres_url(source_postgres_url)
+        .target_postgres_url(target_postgres_url)
+        .database_schema(database_schema)
+        .included_tables(included_tables.split_whitespace().collect())
+        .excluded_tables(excluded_tables.split_whitespace().collect())
+        .mode(mode)
+        .start_date(option_if_not_empty!(start_date))
+        .stop_date(option_if_not_empty!(stop_date))
+        .chunk_size(chunk_size.parse::<i64>().unwrap())
+        .max_connections(max_connections.parse::<u32>().unwrap())
+        .start_position(start_position.parse::<i64>().unwrap())
+        .only_datadiff(only_datadiff)
+        .only_snapshot(only_snapshot)
+        .accept_invalid_certs_first_db(accept_invalid_certs_first_db)
+        .accept_invalid_certs_second_db(accept_invalid_certs_second_db)
+        .build();
 
     Ok(payload)
 }
@@ -301,46 +303,48 @@ async fn main() -> Result<()> {
 
     // Connect to the Postgres database
     info!("{}", "Connecting to source Postgres DB".bold().green());
-    let db_client = PostgresConfig::new(
-        cdc_operator_payload.source_postgres_url(),
-        cdc_operator_payload.database_name(),
-        cdc_operator_payload.max_connections(),
-    );
+    let db_client = PostgresConfig::builder()
+        .postgres_url(cdc_operator_payload.source_postgres_url())
+        .database_schema(cdc_operator_payload.database_name())
+        .max_connections(cdc_operator_payload.max_connections())
+        .build();
+
     let pg_pool = db_client
         .connect_to_postgres(cdc_operator_payload.accept_invalid_certs_first_db())
         .await;
     // Create a PostgresOperatorImpl instance
-    let postgres_operator = PostgresOperatorImpl::new(pg_pool);
+    let postgres_operator = PostgresOperatorImpl::builder().pool(pg_pool).build();
 
     info!("{}", "Connecting to target Postgres DB".bold().green());
-    let target_db_client: PostgresConfig = PostgresConfig::new(
-        cdc_operator_payload.target_postgres_url(),
-        "public",
-        cdc_operator_payload.max_connections(),
-    );
+    let target_db_client: PostgresConfig = PostgresConfig::builder()
+        .postgres_url(cdc_operator_payload.target_postgres_url())
+        .database_schema("public")
+        .max_connections(cdc_operator_payload.max_connections())
+        .build();
+
     let target_pg_pool = target_db_client
         .connect_to_postgres(cdc_operator_payload.accept_invalid_certs_second_db())
         .await;
     // Create a PostgresOperatorImpl instance for the target database
-    let target_postgres_operator = PostgresOperatorImpl::new(target_pg_pool);
+    let target_postgres_operator = PostgresOperatorImpl::builder().pool(target_pg_pool).build();
 
     // Create an S3 client
     info!("{}", "Creating S3 client".bold().green());
     let client = create_s3_client().await;
 
-    let cdc_operator_snapshot_payload = CDCOperatorSnapshotPayload::new(
-        cdc_operator_payload.bucket_name(),
-        cdc_operator_payload.s3_prefix(),
-        cdc_operator_payload.database_name(),
-        cdc_operator_payload.schema_name(),
-        cdc_operator_payload.included_tables().to_vec(),
-        cdc_operator_payload.excluded_tables().to_vec(),
-        cdc_operator_payload.mode(),
-        cdc_operator_payload.start_date().map(|x| x.to_string()),
-        cdc_operator_payload.stop_date().map(|x| x.to_string()),
-        cdc_operator_payload.source_postgres_url().to_string(),
-        cdc_operator_payload.target_postgres_url().to_string(),
-    );
+    let cdc_operator_snapshot_payload = CDCOperatorSnapshotPayload::builder()
+        .bucket_name(cdc_operator_payload.bucket_name())
+        .key(cdc_operator_payload.s3_prefix())
+        .database_name(cdc_operator_payload.database_name())
+        .schema_name(cdc_operator_payload.schema_name())
+        .included_tables(cdc_operator_payload.included_tables().to_vec())
+        .excluded_tables(cdc_operator_payload.excluded_tables().to_vec())
+        .mode(cdc_operator_payload.mode())
+        .maybe_start_date(cdc_operator_payload.start_date())
+        .maybe_stop_date(cdc_operator_payload.stop_date())
+        .source_postgres_url(cdc_operator_payload.source_postgres_url().to_string())
+        .target_postgres_url(cdc_operator_payload.target_postgres_url().to_string())
+        .build();
 
     if !cdc_operator_payload.only_datadiff() {
         info!("{}", "Running snapshot...".bold().blue());
@@ -358,17 +362,17 @@ async fn main() -> Result<()> {
         return Ok(());
     }
 
-    let cdc_operator_validate_payload = CDCOperatorValidatePayload::new(
-        cdc_operator_payload.source_postgres_url(),
-        cdc_operator_payload.target_postgres_url(),
-        cdc_operator_payload.included_tables().to_vec(),
-        cdc_operator_payload.excluded_tables().to_vec(),
-        cdc_operator_payload.schema_name(),
-        cdc_operator_payload.chunk_size(),
-        cdc_operator_payload.start_position(),
-        cdc_operator_payload.accept_invalid_certs_first_db(),
-        cdc_operator_payload.accept_invalid_certs_second_db(),
-    );
+    let cdc_operator_validate_payload = CDCOperatorValidatePayload::builder()
+        .source_postgres_url(cdc_operator_payload.source_postgres_url())
+        .target_postgres_url(cdc_operator_payload.target_postgres_url())
+        .included_tables(cdc_operator_payload.included_tables().to_vec())
+        .excluded_tables(cdc_operator_payload.excluded_tables().to_vec())
+        .schema_name(cdc_operator_payload.schema_name())
+        .chunk_size(cdc_operator_payload.chunk_size())
+        .start_position(cdc_operator_payload.start_position())
+        .accept_invalid_certs_first_db(cdc_operator_payload.accept_invalid_certs_first_db())
+        .accept_invalid_certs_second_db(cdc_operator_payload.accept_invalid_certs_second_db())
+        .build();
 
     let _ = CDCOperator::validate(cdc_operator_validate_payload).await;
 
