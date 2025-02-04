@@ -1,6 +1,5 @@
 use polars::datatypes::AnyValue;
-use polars_core::export::num::ToPrimitive;
-use rust_decimal::Decimal;
+use rust_decimal::{prelude::ToPrimitive, Decimal};
 
 #[allow(clippy::enum_variant_names)]
 pub enum RowStruct<'a> {
