@@ -5,9 +5,8 @@ use deadpool_postgres::{GenericClient, Pool};
 use indexmap::IndexMap;
 use log::{debug, error, trace};
 use polars::prelude::*;
+use rust_decimal::prelude::ToPrimitive;
 use std::sync::LazyLock;
-
-use polars_core::export::num::ToPrimitive;
 
 use std::{fmt::Display, time::Instant};
 
@@ -220,7 +219,7 @@ impl PostgresOperator for PostgresOperatorImpl {
         let column_names = df.get_column_names_str();
         let fields = column_names.join(", ");
 
-        let df_height = df.height().to_i64().unwrap();
+        let df_height = df.height().to_f64().unwrap();
 
         info!("Total DF height: {df_height}");
 
@@ -239,14 +238,14 @@ impl PostgresOperator for PostgresOperatorImpl {
 
         let insert_delay = insert_delay();
 
-        let mut offset = 0i64;
+        let mut offset = 0f64;
 
         while offset < df_height {
             debug!(
                 "Inserting rows at offset: {offset}, table: {table}",
                 table = payload.table_name
             );
-            let df_chunk = df.slice(offset, rows_per_df);
+            let df_chunk = df.slice(offset as i64, rows_per_df);
             let df_chunk_height = df_chunk.height();
             let df_columns = df_chunk.get_columns();
 
@@ -288,7 +287,7 @@ impl PostgresOperator for PostgresOperatorImpl {
                 }
             }
 
-            offset += rows_per_df.to_i64().unwrap();
+            offset += rows_per_df.to_f64().unwrap();
 
             if should_delay_insert {
                 tokio::time::sleep(insert_delay).await;
