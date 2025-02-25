@@ -1,5 +1,5 @@
 use bon::bon;
-use deadpool_postgres::{tokio_postgres::NoTls, Config, Pool, Runtime};
+use deadpool_postgres::{Config, Pool, Runtime, tokio_postgres::NoTls};
 
 #[allow(dead_code)]
 /// Represents a Postgres config that connects to a Postgres database.
