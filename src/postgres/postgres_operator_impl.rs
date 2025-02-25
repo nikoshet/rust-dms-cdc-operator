@@ -10,8 +10,8 @@ use std::sync::LazyLock;
 
 use std::{fmt::Display, time::Instant};
 
-use tracing::info;
 use TableQuery::*;
+use tracing::info;
 
 pub(crate) use super::postgres_operator::PostgresOperator;
 use super::{
@@ -308,15 +308,9 @@ impl PostgresOperator for PostgresOperatorImpl {
         let mut row_values = Vec::new();
         let mut deleted_row: bool;
 
-        let column_names = df
-            .get_column_names_str()
-            .into_iter()
-            .filter(|column| {
-                let is_not_op = *column != "Op";
-                let is_not_dms_ingestion_timestamp = *column != "_dms_ingestion_timestamp";
-                is_not_op && is_not_dms_ingestion_timestamp
-            })
-            .collect::<Vec<_>>();
+        let mut column_names = df.get_column_names_str();
+        column_names.retain(|column| *column != "Op" && *column != "_dms_ingestion_timestamp");
+
         let fields = column_names.join(", ");
         let client = self.pool.get().await?;
 

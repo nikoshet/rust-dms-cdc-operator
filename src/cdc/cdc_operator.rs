@@ -174,12 +174,10 @@ impl CDCOperator {
                             info!("Processing LOAD file: {:?}", file);
                             // Check if the schema of the table is the same as the schema of the Parquet file
                             // in case of altered column names or dropped columns
-                            let df_column_fields = current_df.get_columns();
-                            let has_schema_diff = df_column_fields
+                            let has_schema_diff = current_df
+                                .get_columns()
                                 .iter()
-                                .filter(|field| {
-                                    field.name() != "Op" && field.name() != "_dms_ingestion_timestamp"
-                                })
+                                .filter(|field| field.name() != "Op" && field.name() != "_dms_ingestion_timestamp")
                                 .any(|field| !source_table_columns.contains_key(field.name().as_str()));
 
                             if has_schema_diff {
@@ -233,9 +231,9 @@ impl CDCOperator {
             })
             .collect::<Vec<_>>();
 
-        use futures::stream::{self};
         use futures::FutureExt;
         use futures::StreamExt;
+        use futures::stream::{self};
 
         let num_of_buffers = env::var("NUM_OF_BUFFERS")
             .unwrap_or_else(|_| "80".to_string())

@@ -1,7 +1,7 @@
 use anyhow::Result;
 use async_trait::async_trait;
-use aws_sdk_s3::primitives::{DateTime, DateTimeFormat};
 use aws_sdk_s3::Client as S3Client;
+use aws_sdk_s3::primitives::{DateTime, DateTimeFormat};
 use chrono::{Datelike, NaiveDate};
 use log::{debug, info};
 
@@ -177,7 +177,9 @@ impl S3Operator for S3OperatorImpl<'_> {
 
                 // We want to process the LOAD files first in INSERT mode, so we rotate the list,
                 // Then, we will process the rest CDC files in UPSERT mode.
-                let load_files_count = files_list.iter().filter(|s| s.is_load_file()).count();
+                files_list.retain(|s| s.is_load_file());
+                let load_files_count = files_list.len();
+
                 files_list.rotate_right(load_files_count);
                 files_list
             }
