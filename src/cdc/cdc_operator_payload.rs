@@ -175,7 +175,7 @@ impl CDCOperatorPayload {
 mod tests {
     use super::*;
 
-    #[tokio::test]
+    #[monoio::test]
     #[should_panic = "Cannot run both only_datadiff and only_snapshot at the same time"]
     async fn test_validate() {
         let bucket_name = "test-bucket";

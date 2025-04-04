@@ -20,6 +20,7 @@ tracing-subscriber.workspace = true
 tracing.workspace = true
 aws-sdk-s3.workspace = true
 dms-cdc-operator.workspace = true
+monoio.workspace = true
 clap = { version = "4.5.4", features = ["derive"], optional = true }
 inquire = { version = "0.7.4", optional = true }
 aws-config = { version = "1.1.7", features = ["behavior-version-latest"] }

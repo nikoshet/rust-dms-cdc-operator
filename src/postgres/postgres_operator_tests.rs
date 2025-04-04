@@ -8,7 +8,7 @@ mod tests {
         InsertDataframePayload, MockPostgresOperator, PostgresOperator, UpsertDataframePayload,
     };
 
-    #[tokio::test]
+    #[monoio::test]
     async fn test_get_table_columns() {
         let mut postgres_operator = MockPostgresOperator::new();
         postgres_operator
@@ -31,7 +31,7 @@ mod tests {
         assert_eq!(result.get("column2").unwrap(), "text");
     }
 
-    #[tokio::test]
+    #[monoio::test]
     async fn test_get_primary_key() {
         let mut postgres_operator = MockPostgresOperator::new();
         postgres_operator
@@ -47,7 +47,7 @@ mod tests {
         assert_eq!(result, vec!["primary_key"]);
     }
 
-    #[tokio::test]
+    #[monoio::test]
     async fn test_create_table() {
         let mut postgres_operator = MockPostgresOperator::new();
         postgres_operator
@@ -70,7 +70,7 @@ mod tests {
             .unwrap();
     }
 
-    #[tokio::test]
+    #[monoio::test]
     async fn test_insert_dataframe_in_target_db() {
         let mut postgres_operator = MockPostgresOperator::new();
         postgres_operator
@@ -91,7 +91,7 @@ mod tests {
             .unwrap();
     }
 
-    #[tokio::test]
+    #[monoio::test]
     async fn test_upsert_dataframe_in_target_db() {
         let mut postgres_operator = MockPostgresOperator::new();
         postgres_operator
@@ -112,7 +112,7 @@ mod tests {
             .unwrap();
     }
 
-    #[tokio::test]
+    #[monoio::test]
     async fn test_close_connection_pool() {
         let mut postgres_operator = MockPostgresOperator::new();
         postgres_operator

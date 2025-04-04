@@ -286,7 +286,7 @@ fn main_inquire() -> Result<CDCOperatorPayload> {
     Ok(payload)
 }
 
-#[::tokio::main]
+#[monoio::main]
 async fn main() -> Result<()> {
     tracing_subscriber::fmt::init();
 

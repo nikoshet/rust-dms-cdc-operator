@@ -47,6 +47,7 @@ dms-cdc-operator = { path = ".", version = "0.1" }
 native-tls = "0.2.13"
 postgres-native-tls = "0.5.1"
 bon = "3.3.2"
+monoio = "0.2.4"
 
 [dependencies]
 indexmap.workspace = true
@@ -69,6 +70,7 @@ tracing-subscriber.workspace = true
 postgres-native-tls.workspace = true
 native-tls.workspace = true
 bon.workspace = true
+monoio.workspace = true
 
 [dev-dependencies]
 mockall.workspace = true

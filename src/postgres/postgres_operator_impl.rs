@@ -290,7 +290,7 @@ impl PostgresOperator for PostgresOperatorImpl {
             offset += rows_per_df.to_f64().unwrap();
 
             if should_delay_insert {
-                tokio::time::sleep(insert_delay).await;
+                _ = monoio::time::sleep(insert_delay);
             }
         }
 
