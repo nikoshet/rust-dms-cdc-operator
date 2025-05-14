@@ -15,22 +15,33 @@ exclude = ["script.sh"]
 members = ["dms-cdc-operator-client"]
 
 [workspace.dependencies]
-aws-sdk-s3 = "1.72.0"
+aws-sdk-s3 = "1.85.0"
 tokio = { version = "1", features = ["full"] }
 anyhow = "1.0"
 log = "0.4.25"
 colored = "3.0.0"
-polars = { version = "0.46.0", features = [
-    "timezones",
+polars = { git = "https://github.com/pola-rs/polars", branch = "main", features = [
+    "aws",
+    "dtype-decimal",
     "json",
     "lazy",
-    "aws",
+    "new_streaming",
     "parquet",
-    "dtype-decimal",
     "streaming",
     "strings",
+    "timezones",
 ] }
-polars-core = "0.46.0"
+# polars = { version = "0.46.0", features = [
+#     "timezones",
+#     "json",
+#     "lazy",
+#     "aws",
+#     "parquet",
+#     "dtype-decimal",
+#     "streaming",
+#     "strings",
+# ] }
+# polars-core = "0.46.0"
 chrono = "0.4.39"
 async-trait = "0.1.86"
 rust-pgdatadiff = "0.1.8"
@@ -50,7 +61,6 @@ bon = "3.3.2"
 
 [dependencies]
 indexmap.workspace = true
-polars-core.workspace = true
 polars.workspace = true
 tokio.workspace = true
 anyhow.workspace = true
