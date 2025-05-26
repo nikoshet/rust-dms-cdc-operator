@@ -67,6 +67,9 @@ enum Commands {
         /// List of tables to exclude for validatation against S3 files
         #[arg(long, value_delimiter = ',', num_args = 0.., required = false, conflicts_with("included_tables"))]
         excluded_tables: Vec<String>,
+        /// List of extensions to include
+        #[arg(long, value_delimiter = ',', num_args = 0.., required = false)]
+        included_extensions: Vec<String>,
         /// Mode to load Parquet files
         /// Example: DateAware
         /// Example: AbsolutePath
@@ -128,6 +131,7 @@ fn main_clap() -> Result<CDCOperatorPayload> {
             database_schema,
             included_tables,
             excluded_tables,
+            included_extensions,
             mode,
             start_date,
             stop_date,
@@ -147,6 +151,7 @@ fn main_clap() -> Result<CDCOperatorPayload> {
                 database_schema,
                 included_tables,
                 excluded_tables,
+                included_extensions,
                 mode,
                 start_date,
                 stop_date,
@@ -203,6 +208,11 @@ fn main_inquire() -> Result<CDCOperatorPayload> {
         .with_help_message(
             "Enter the list of table names to exclude for validatation against S3 files (comma separated)",
         )
+        .prompt()?;
+
+    let included_extensions = Text::new("Extensions to include")
+        .with_default("extension1,extension2")
+        .with_help_message("Enter the list of extensions to include (comma separated)")
         .prompt()?;
 
     let mode = Text::new("Mode")
@@ -271,6 +281,7 @@ fn main_inquire() -> Result<CDCOperatorPayload> {
         .database_schema(database_schema)
         .included_tables(included_tables.split_whitespace().collect())
         .excluded_tables(excluded_tables.split_whitespace().collect())
+        .included_extensions(included_extensions.split_whitespace().collect())
         .mode(mode)
         .start_date(option_if_not_empty!(start_date))
         .stop_date(option_if_not_empty!(stop_date))
@@ -344,6 +355,7 @@ async fn main() -> Result<()> {
         .maybe_stop_date(cdc_operator_payload.stop_date())
         .source_postgres_url(cdc_operator_payload.source_postgres_url().to_string())
         .target_postgres_url(cdc_operator_payload.target_postgres_url().to_string())
+        .included_extensions(cdc_operator_payload.included_extensions().to_vec())
         .build();
 
     if !cdc_operator_payload.only_datadiff() {
@@ -367,6 +379,7 @@ async fn main() -> Result<()> {
         .target_postgres_url(cdc_operator_payload.target_postgres_url())
         .included_tables(cdc_operator_payload.included_tables().to_vec())
         .excluded_tables(cdc_operator_payload.excluded_tables().to_vec())
+        .included_extensions(cdc_operator_payload.included_extensions().to_vec())
         .schema_name(cdc_operator_payload.schema_name())
         .chunk_size(cdc_operator_payload.chunk_size())
         .start_position(cdc_operator_payload.start_position())

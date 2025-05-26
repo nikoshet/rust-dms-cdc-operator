@@ -70,6 +70,8 @@ Options:
           Schema of database to validate against S3 files [default: public]
       --included-tables [<INCLUDED_TABLES>...]
           List of tables to include for validatation against S3 files
+      --included-extensions [<INCLUDED_EXTENSIONS>...]
+          List of extensions to include to the target DB
       --excluded-tables [<EXCLUDED_TABLES>...]
           List of tables to exclude for validatation against S3 files
       --mode <MODE>

@@ -10,6 +10,7 @@ pub struct CDCOperatorPayload {
     database_schema: String,
     included_tables: Vec<String>,
     excluded_tables: Vec<String>,
+    included_extensions: Vec<String>,
     mode: ModeValueEnum,
     start_date: Option<String>,
     stop_date: Option<String>,
@@ -35,6 +36,7 @@ impl CDCOperatorPayload {
     /// * `database_schema` - The schema of the database.
     /// * `included_tables` - The list of tables to include for validation.
     /// * `excluded_tables` - The list of tables to exclude for validation.
+    /// * `included_extensions` - The list of extensions to include to the target DB.
     /// * `mode` - The mode of the CDC Operator.
     /// * `start_date` - Will be used to constract a key from which Amazon will start listing files after that key.
     /// * `stop_date` - Will be used to stop listing files after that date.
@@ -58,6 +60,7 @@ impl CDCOperatorPayload {
         database_schema: impl Into<String>,
         included_tables: Vec<impl Into<String>>,
         excluded_tables: Vec<impl Into<String>>,
+        included_extensions: Option<Vec<impl Into<String>>>,
         mode: ModeValueEnum,
         start_date: impl Into<Option<String>>,
         stop_date: impl Into<Option<String>>,
@@ -81,6 +84,9 @@ impl CDCOperatorPayload {
             database_schema: database_schema.into(),
             included_tables: included_tables.into_iter().map(|t| t.into()).collect(),
             excluded_tables: excluded_tables.into_iter().map(|t| t.into()).collect(),
+            included_extensions: included_extensions
+                .map(|t| t.into_iter().map(|t| t.into()).collect())
+                .unwrap_or_default(),
             mode,
             start_date: start_date.into(),
             stop_date: stop_date.into(),
@@ -128,6 +134,10 @@ impl CDCOperatorPayload {
 
     pub fn excluded_tables(&self) -> &[String] {
         &self.excluded_tables
+    }
+
+    pub fn included_extensions(&self) -> &[String] {
+        &self.included_extensions
     }
 
     pub fn mode(&self) -> ModeValueEnum {
@@ -185,6 +195,7 @@ mod tests {
         let database_schema = "public";
         let included_tables = vec!["table1", "table2"];
         let excluded_tables = vec!["table3", "table4"];
+        let included_extensions = Some(vec!["jsonb", "json"]);
         let mode = ModeValueEnum::DateAware;
         let start_date = Some("2021-01-01".to_string());
         let stop_date = Some("2021-01-02".to_string());
@@ -204,6 +215,7 @@ mod tests {
             .database_schema(database_schema)
             .included_tables(included_tables)
             .excluded_tables(excluded_tables)
+            .included_extensions(included_extensions.unwrap())
             .mode(mode)
             .start_date(start_date)
             .stop_date(stop_date)

@@ -5,6 +5,7 @@ pub struct CDCOperatorValidatePayload {
     pub target_postgres_url: String,
     pub included_tables: Vec<String>,
     pub excluded_tables: Vec<String>,
+    pub included_extensions: Option<Vec<String>>,
     pub schema_name: String,
     pub chunk_size: i64,
     pub start_position: i64,
@@ -20,6 +21,7 @@ impl CDCOperatorValidatePayload {
         target_postgres_url: impl Into<String>,
         included_tables: Vec<impl Into<String>>,
         excluded_tables: Vec<impl Into<String>>,
+        included_extensions: Option<Vec<impl Into<String>>>,
         schema_name: impl Into<String>,
         chunk_size: i64,
         start_position: i64,
@@ -31,6 +33,8 @@ impl CDCOperatorValidatePayload {
             target_postgres_url: target_postgres_url.into(),
             included_tables: included_tables.into_iter().map(|t| t.into()).collect(),
             excluded_tables: excluded_tables.into_iter().map(|t| t.into()).collect(),
+            included_extensions: included_extensions
+                .map(|t| t.into_iter().map(|t| t.into()).collect()),
             schema_name: schema_name.into(),
             chunk_size,
             start_position,
@@ -53,6 +57,10 @@ impl CDCOperatorValidatePayload {
 
     pub fn excluded_tables(&self) -> Vec<String> {
         self.excluded_tables.clone()
+    }
+
+    pub fn included_extensions(&self) -> Option<Vec<String>> {
+        self.included_extensions.clone()
     }
 
     pub fn schema_name(&self) -> String {

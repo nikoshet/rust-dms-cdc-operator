@@ -18,6 +18,7 @@ pub struct CDCOperatorSnapshotPayload {
     stop_date: Option<String>,
     source_postgres_url: String,
     target_postgres_url: String,
+    included_extensions: Option<Vec<String>>,
 }
 
 #[bon]
@@ -35,6 +36,7 @@ impl CDCOperatorSnapshotPayload {
         stop_date: Option<String>,
         source_postgres_url: String,
         target_postgres_url: String,
+        included_extensions: Option<Vec<impl Into<String>>>,
     ) -> Self {
         CDCOperatorSnapshotPayload {
             bucket_name: bucket_name.into(),
@@ -48,6 +50,8 @@ impl CDCOperatorSnapshotPayload {
             stop_date,
             source_postgres_url,
             target_postgres_url,
+            included_extensions: included_extensions
+                .map(|t| t.into_iter().map(|t| t.into()).collect()),
         }
     }
 
@@ -111,5 +115,9 @@ impl CDCOperatorSnapshotPayload {
 
     pub fn target_postgres_url(&self) -> String {
         self.target_postgres_url.clone()
+    }
+
+    pub fn included_extensions(&self) -> Option<Vec<String>> {
+        self.included_extensions.clone()
     }
 }
