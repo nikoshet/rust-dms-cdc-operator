@@ -20,28 +20,16 @@ tokio = { version = "1", features = ["full"] }
 anyhow = "1.0"
 log = "0.4.25"
 colored = "3.0.0"
-polars = { git = "https://github.com/pola-rs/polars", branch = "main", features = [
-    "aws",
-    "dtype-decimal",
+polars = { version = "0.48.1", features = [
+    "timezones",
     "json",
     "lazy",
-    "new_streaming",
+    "aws",
     "parquet",
+    "dtype-decimal",
     "streaming",
     "strings",
-    "timezones",
 ] }
-# polars = { version = "0.46.0", features = [
-#     "timezones",
-#     "json",
-#     "lazy",
-#     "aws",
-#     "parquet",
-#     "dtype-decimal",
-#     "streaming",
-#     "strings",
-# ] }
-# polars-core = "0.46.0"
 chrono = "0.4.39"
 async-trait = "0.1.86"
 rust-pgdatadiff = "0.1.8"
