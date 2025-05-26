@@ -159,6 +159,17 @@ pub trait PostgresOperator {
     /// A Result indicating success or failure.
     async fn drop_schema(&self, schema_name: &str) -> Result<()>;
 
+    /// Run a generic SQL command.
+    ///
+    /// # Arguments
+    ///
+    /// * `sql_command` - The SQL command to run.
+    ///
+    /// # Returns
+    ///
+    /// A Result indicating success or failure.
+    async fn run_sql_command(&self, sql_command: &str) -> Result<()>;
+
     /// Close the connection pool.
     ///
     /// # Returns
