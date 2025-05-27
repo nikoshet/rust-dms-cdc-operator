@@ -1753,7 +1753,7 @@ dependencies = [
 
 [[package]]
 name = "dms-cdc-operator-client"
-version = "0.1.20"
+version = "0.1.24"
 dependencies = [
  "anyhow",
  "aws-config",
