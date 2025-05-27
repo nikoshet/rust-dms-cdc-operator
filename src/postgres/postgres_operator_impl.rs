@@ -428,6 +428,17 @@ impl PostgresOperator for PostgresOperatorImpl {
         Ok(())
     }
 
+    async fn run_sql_command(&self, sql_command: &str) -> Result<()> {
+        let client = self.pool.get().await?;
+
+        client
+            .execute(sql_command, &[])
+            .await
+            .unwrap_or_else(|_| panic!("Failed to execute SQL command: {}", sql_command));
+
+        Ok(())
+    }
+
     async fn close_connection_pool(&self) {
         self.pool.close();
     }
