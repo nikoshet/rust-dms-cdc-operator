@@ -13,6 +13,7 @@ use std::{fmt::Display, time::Instant};
 use TableQuery::*;
 use tracing::info;
 
+use super::postgres_geometry_type::PostgresGeometryType;
 pub(crate) use super::postgres_operator::PostgresOperator;
 use super::{
     postgres_operator::{InsertDataframePayload, UpsertDataframePayload},
@@ -219,6 +220,8 @@ impl PostgresOperator for PostgresOperatorImpl {
         let column_names = df.get_column_names_str();
         let fields = column_names.join(", ");
 
+        debug!("Columns names: {fields}");
+
         let df_height = df.height().to_f64().unwrap();
 
         info!("Total DF height: {df_height}");
@@ -255,7 +258,7 @@ impl PostgresOperator for PostgresOperatorImpl {
                         .iter()
                         .map(|column| {
                             let v = column.get(row_idx).unwrap();
-                            RowStruct::new(&v).displayed()
+                            preprocess_value(&v)
                         })
                         .collect::<Vec<_>>()
                         .join(", ");
@@ -283,6 +286,10 @@ impl PostgresOperator for PostgresOperatorImpl {
                     error!(
                         "Failed to insert data into table -> {}: {e}",
                         payload.table_name
+                    );
+                    panic!(
+                        "Failed query: {}",
+                        query.chars().take(1000).collect::<String>()
                     );
                 }
             }
@@ -472,4 +479,28 @@ fn insert_delay() -> std::time::Duration {
             .parse::<u64>()
             .unwrap(),
     )
+}
+
+fn preprocess_value(value: &AnyValue) -> String {
+    match value {
+        AnyValue::String(_) | AnyValue::StringOwned(_) => {
+            let string_value = &value.str_value();
+            let potential_geometry_value = string_value.to_string();
+            let potential_geometry_value = potential_geometry_value.trim();
+            let postgres_geometry_type = PostgresGeometryType::new(potential_geometry_value);
+            if postgres_geometry_type.is_geometry_type() {
+                let formatted_geometry_value =
+                    postgres_geometry_type.format_value(potential_geometry_value);
+                debug!("Formatted Geometry value: {formatted_geometry_value}");
+                formatted_geometry_value
+            } else {
+                RowStruct::FromString(string_value.to_string()).displayed()
+            }
+        }
+        _ => {
+            debug!("On other =>: {}", RowStruct::new(value).displayed());
+            debug!("Type of value: {}", value.dtype());
+            RowStruct::new(value).displayed()
+        }
+    }
 }
