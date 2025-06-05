@@ -1,5 +1,6 @@
 pub struct PostgresGeometryType {
     value_type: String,
+    srid_value: i32,
 }
 
 impl PostgresGeometryType {
@@ -8,7 +9,7 @@ impl PostgresGeometryType {
     const ACCEPTED_GEOMETRY_KEYWORDS: &[&str] = &[Self::MULTIPOLYGON];
     const NUM_OF_CHARS_FOR_GEOMETRY_TYPE_CHECK: usize = 30;
 
-    pub fn new(input: &str) -> Self {
+    pub fn new(input: &str, srid_value: i32) -> Self {
         let value_type = input
             .chars()
             .take(Self::NUM_OF_CHARS_FOR_GEOMETRY_TYPE_CHECK)
@@ -26,6 +27,7 @@ impl PostgresGeometryType {
 
         PostgresGeometryType {
             value_type: sanitized_value_type,
+            srid_value,
         }
     }
 
@@ -42,9 +44,10 @@ impl PostgresGeometryType {
 
         match value_type {
             Self::MULTIPOLYGON => format!(
-                "{}('{}', 4326)",
+                "{}('{}', {})",
                 Self::GEOMETRY_TYPE_FROM_TEXT_PREFIX,
-                value
+                value,
+                self.srid_value
             ),
             _ => self.value_type.clone(),
         }

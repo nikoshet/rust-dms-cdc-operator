@@ -487,7 +487,7 @@ fn preprocess_value(value: &AnyValue) -> String {
             let string_value = &value.str_value();
             let potential_geometry_value = string_value.to_string();
             let potential_geometry_value = potential_geometry_value.trim();
-            let postgres_geometry_type = PostgresGeometryType::new(potential_geometry_value);
+            let postgres_geometry_type = PostgresGeometryType::new(potential_geometry_value, 0);
             if postgres_geometry_type.is_geometry_type() {
                 let formatted_geometry_value =
                     postgres_geometry_type.format_value(potential_geometry_value);
