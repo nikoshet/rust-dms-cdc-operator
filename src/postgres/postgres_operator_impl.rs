@@ -217,7 +217,11 @@ impl PostgresOperator for PostgresOperatorImpl {
             .drop_in_place("_dms_ingestion_timestamp")
             .expect("Failed to drop '_dms_ingestion_timestamp' column");
 
-        let column_names = df.get_column_names_str();
+        let column_names = df
+            .get_column_names()
+            .iter()
+            .map(|s| s.to_string())
+            .collect::<Vec<String>>();
         let fields = column_names.join(", ");
 
         debug!("Columns names: {fields}");
@@ -250,7 +254,7 @@ impl PostgresOperator for PostgresOperatorImpl {
             );
             let df_chunk = df.slice(offset as i64, rows_per_df);
             let df_chunk_height = df_chunk.height();
-            let df_columns = df_chunk.get_columns();
+            let df_columns = df_chunk.columns();
 
             let values = (0..df_chunk_height)
                 .map(|row_idx| {
@@ -315,8 +319,12 @@ impl PostgresOperator for PostgresOperatorImpl {
         let mut row_values = Vec::new();
         let mut deleted_row: bool;
 
-        let mut column_names = df.get_column_names_str();
-        column_names.retain(|column| *column != "Op" && *column != "_dms_ingestion_timestamp");
+        let mut column_names = df
+            .get_column_names()
+            .iter()
+            .map(|s| s.to_string())
+            .collect::<Vec<String>>();
+        column_names.retain(|column| column != "Op" && column != "_dms_ingestion_timestamp");
 
         let fields = column_names.join(", ");
         let client = self.pool.get().await?;
@@ -331,7 +339,7 @@ impl PostgresOperator for PostgresOperatorImpl {
                 .map(|key| df.column(key).unwrap().get(row).unwrap().to_string())
                 .collect::<Vec<String>>();
 
-            for column in df.get_columns() {
+            for column in df.columns() {
                 // Operation: Delete
                 // Delete the rows where Op="D"
                 let column_name = column.name();

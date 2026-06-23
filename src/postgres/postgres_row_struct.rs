@@ -14,7 +14,11 @@ impl<'a> RowStruct<'a> {
     pub fn new(value: &'a AnyValue<'a>) -> Self {
         match value {
             AnyValue::String(v) => RowStruct::FromString(v.to_string()),
-            AnyValue::Decimal(integer, precision) => RowStruct::FromDecimal(*integer, *precision),
+            // polars 0.54: `Decimal(value, precision, scale)` — the scale (the
+            // value rust_decimal needs) moved from the 2nd to the 3rd field.
+            AnyValue::Decimal(integer, _precision, scale) => {
+                RowStruct::FromDecimal(*integer, *scale)
+            }
             AnyValue::Datetime(_, _, _) | AnyValue::Date(_) => RowStruct::FromDate(value),
             AnyValue::Float64(v) => RowStruct::FromFloat(*v),
             _ => RowStruct::FromOther(value),
