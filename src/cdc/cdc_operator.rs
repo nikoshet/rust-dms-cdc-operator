@@ -175,7 +175,7 @@ impl CDCOperator {
                             // Check if the schema of the table is the same as the schema of the Parquet file
                             // in case of altered column names or dropped columns
                             let has_schema_diff = current_df
-                                .get_columns()
+                                .columns()
                                 .iter()
                                 .filter(|field| field.name() != "Op" && field.name() != "_dms_ingestion_timestamp")
                                 .any(|field| !source_table_columns.contains_key(field.name().as_str()));

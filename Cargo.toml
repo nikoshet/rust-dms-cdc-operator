@@ -20,14 +20,13 @@ tokio = { version = "1", features = ["full"] }
 anyhow = "1.0"
 log = "0.4.25"
 colored = "3.0.0"
-polars = { version = "0.48.1", features = [
+polars = { version = "0.55.2", features = [
     "timezones",
     "json",
     "lazy",
     "aws",
     "parquet",
     "dtype-decimal",
-    "streaming",
     "strings",
 ] }
 chrono = "0.4.39"
