@@ -1,6 +1,20 @@
 use indexmap::IndexMap;
 use std::fmt::Display;
 
+/// Quotes a column name so that reserved keywords (e.g. `end`) and mixed-case names are handled.
+pub fn quote_identifier(identifier: &str) -> String {
+    format!("\"{}\"", identifier.replace('"', "\"\""))
+}
+
+/// Quotes each name of a comma separated list of column names, e.g. a composite primary key.
+pub fn quote_identifier_list(identifiers: &str) -> String {
+    identifiers
+        .split(',')
+        .map(|identifier| quote_identifier(identifier.trim()))
+        .collect::<Vec<_>>()
+        .join(",")
+}
+
 pub enum TableQuery {
     FindAllColumns(String, String),
     FindTablesForSchema(String, String),
@@ -74,10 +88,13 @@ impl Display for TableQuery {
                 let mut query = format!("CREATE TABLE IF NOT EXISTS {}.{} (", schema, table);
 
                 for (column, data_type) in column_data_types {
-                    query.push_str(&format!("{} {},", column, data_type));
+                    query.push_str(&format!("{} {},", quote_identifier(column), data_type));
                 }
                 if !primary_key.is_empty() {
-                    query.push_str(&format!("PRIMARY KEY ({})", primary_key));
+                    query.push_str(&format!(
+                        "PRIMARY KEY ({})",
+                        quote_identifier_list(primary_key)
+                    ));
                 } else {
                     query.pop();
                 }
@@ -189,7 +206,20 @@ mod tests {
         );
         assert_eq!(
             query.to_string(),
-            "CREATE TABLE IF NOT EXISTS schema.table (column1 varchar,column2 int,PRIMARY KEY (primary_key,primary_key2))"
+            r#"CREATE TABLE IF NOT EXISTS schema.table ("column1" varchar,"column2" int,PRIMARY KEY ("primary_key","primary_key2"))"#
         );
+    }
+
+    #[test]
+    fn test_quote_identifier() {
+        assert_eq!(quote_identifier("end"), r#""end""#);
+        assert_eq!(quote_identifier("userId"), r#""userId""#);
+        assert_eq!(quote_identifier(r#"a"b"#), r#""a""b""#);
+    }
+
+    #[test]
+    fn test_quote_identifier_list() {
+        assert_eq!(quote_identifier_list("id"), r#""id""#);
+        assert_eq!(quote_identifier_list("id,start"), r#""id","start""#);
     }
 }

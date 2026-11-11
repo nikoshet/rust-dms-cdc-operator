@@ -48,8 +48,7 @@ jobs:
         with:
           toolchain: ${{ env.RUST_VERSION }}
       - name: Install cargo-nextest
-        uses: baptiste0928/cargo-install@v3
-        with:
-          crate: cargo-nextest
+        # Prebuilt binary, so it does not depend on the pinned toolchain's rustc version
+        run: curl -LsSf https://get.nexte.st/0.9.151/linux | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
       - name: Run tests
         run: cargo nextest run --all
