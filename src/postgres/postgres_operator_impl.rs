@@ -17,7 +17,7 @@ use super::postgres_geometry_type::PostgresGeometryType;
 pub(crate) use super::postgres_operator::PostgresOperator;
 use super::{
     postgres_operator::{InsertDataframePayload, UpsertDataframePayload},
-    table_query::TableQuery,
+    table_query::{TableQuery, quote_identifier, quote_identifier_list},
 };
 
 use crate::postgres::postgres_row_struct::RowStruct;
@@ -218,7 +218,11 @@ impl PostgresOperator for PostgresOperatorImpl {
             .expect("Failed to drop '_dms_ingestion_timestamp' column");
 
         let column_names = df.get_column_names_str();
-        let fields = column_names.join(", ");
+        let fields = column_names
+            .iter()
+            .map(|column| quote_identifier(column))
+            .collect::<Vec<_>>()
+            .join(", ");
 
         debug!("Columns names: {fields}");
 
@@ -318,7 +322,11 @@ impl PostgresOperator for PostgresOperatorImpl {
         let mut column_names = df.get_column_names_str();
         column_names.retain(|column| *column != "Op" && *column != "_dms_ingestion_timestamp");
 
-        let fields = column_names.join(", ");
+        let fields = column_names
+            .iter()
+            .map(|column| quote_identifier(column))
+            .collect::<Vec<_>>()
+            .join(", ");
         let client = self.pool.get().await?;
 
         for row in 0..df.height() {
@@ -396,14 +404,17 @@ impl PostgresOperator for PostgresOperatorImpl {
                     .map(|(index, column)| {
                         format!(
                             "{} = {}",
-                            column,
+                            quote_identifier(column),
                             RowStruct::new(row_values.get(index).unwrap()).displayed()
                         )
                     })
                     .collect::<Vec<_>>();
 
                 // Construct the query, on Conflict, update the row
-                let strategy = format!(" ON CONFLICT ({}) DO UPDATE SET ", payload.primary_key);
+                let strategy = format!(
+                    " ON CONFLICT ({}) DO UPDATE SET ",
+                    quote_identifier_list(&payload.primary_key)
+                );
                 let concatenated_values = column_names.join(", ");
 
                 format!("{strategy} {concatenated_values}")
